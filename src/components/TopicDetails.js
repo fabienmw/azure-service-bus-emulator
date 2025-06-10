@@ -8,9 +8,9 @@ function TopicDetails() {
   if (!selectedTopic) return null;
 
   return (
-    <div className="flex-1 flex flex-col bg-secondary-50">
+    <div className="h-full flex flex-col bg-secondary-50">
       {/* Header */}
-      <div className="bg-white border-b border-secondary-200 p-6">
+      <div className="bg-white border-b border-secondary-200 p-6 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold text-secondary-800 mb-1">
@@ -55,7 +55,7 @@ function TopicDetails() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 overflow-y-auto p-6">
         <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
           <h3 className="text-lg font-semibold text-secondary-800 mb-4 flex items-center">
             <Settings className="h-5 w-5 mr-2" />

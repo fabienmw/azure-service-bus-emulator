@@ -15,23 +15,37 @@ const initialState = {
   selectedQueue: null,
   selectedTopic: null,
   selectedSubscription: null,
-  messages: [],
-  deadLetterMessages: [],
-  allMessages: [], // Combined active + dead letter messages
-  messageFilter: 'active', // 'active', 'deadletter', 'all'
+  
+  // Separate message state for queues
+  queueMessages: [],
+  queueDeadLetterMessages: [],
+  queueAllMessages: [],
+  
+  // Separate message state for subscriptions  
+  subscriptionMessages: [],
+  subscriptionDeadLetterMessages: [],
+  subscriptionAllMessages: [],
+  
+  // Pagination state
+  pagination: {
+    currentPage: 1,
+    pageSize: 20,
+    totalItems: 0
+  },
+  
+  // Shared UI state
+  messageFilter: 'active',
+  messageCount: 20,
   loading: false,
   error: null,
-
   messagePreview: null,
-  messageCount: 50, // Selected message count for loading
-  // Tree expand/collapse states
   expandedStates: {
-    connections: true, // Start expanded by default
-    connectionChildren: {}, // { connectionId: boolean } - tracks if connection's children are expanded
+    connections: true,
+    connectionChildren: {},
     queues: false,
     topics: false,
-    topicSubscriptions: {}, // { topicName: boolean } - tracks if topic's subscriptions section is expanded
-    topicDetails: {} // { topicName: boolean } - tracks if topic itself is expanded to show subscriptions tab
+    topicDetails: {},
+    topicSubscriptions: {}
   },
 };
 
@@ -95,8 +109,12 @@ function appReducer(state, action) {
         selectedQueue: null,
         selectedTopic: null,
         selectedSubscription: null,
-        messages: [],
-        deadLetterMessages: [],
+        queueMessages: [],
+        queueDeadLetterMessages: [],
+        queueAllMessages: [],
+        subscriptionMessages: [],
+        subscriptionDeadLetterMessages: [],
+        subscriptionAllMessages: [],
       };
     
     case 'SET_QUEUES':
@@ -141,15 +159,10 @@ function appReducer(state, action) {
         selectedQueue: action.payload,
         selectedTopic: null,
         selectedSubscription: null,
-        messages: [],
-        deadLetterMessages: [],
-        allMessages: [],
+        subscriptionMessages: [],
+        subscriptionDeadLetterMessages: [],
+        subscriptionAllMessages: [],
         messageFilter: 'active',
-        pagination: {
-          hasMoreActive: true,
-          hasMoreDeadLetter: true,
-          batchSize: 50,
-        },
       };
     
     case 'SET_SELECTED_TOPIC':
@@ -158,8 +171,8 @@ function appReducer(state, action) {
         selectedTopic: action.payload,
         selectedQueue: null,
         selectedSubscription: null,
-        messages: [],
-        deadLetterMessages: [],
+        queueMessages: [],
+        queueDeadLetterMessages: [],
       };
     
     case 'SET_SELECTED_SUBSCRIPTION':
@@ -167,10 +180,13 @@ function appReducer(state, action) {
         ...state, 
         selectedSubscription: action.payload,
         selectedQueue: null,
-        messages: [],
-        deadLetterMessages: [],
-        allMessages: [],
-        messageFilter: 'all',
+        queueMessages: [],
+        queueDeadLetterMessages: [],
+        queueAllMessages: [],
+        subscriptionMessages: [],
+        subscriptionDeadLetterMessages: [],
+        subscriptionAllMessages: [],
+        messageFilter: 'active',
       };
     
     case 'SET_MESSAGES':
@@ -187,8 +203,6 @@ function appReducer(state, action) {
     
     case 'SET_MESSAGE_COUNT':
       return { ...state, messageCount: action.payload };
-    
-
     
     case 'TOGGLE_CONNECTIONS_EXPANDED':
       return { 
@@ -255,6 +269,55 @@ function appReducer(state, action) {
     
     case 'SET_MESSAGE_PREVIEW':
       return { ...state, messagePreview: action.payload };
+    
+    // Queue message actions
+    case 'SET_QUEUE_MESSAGES':
+      return { ...state, queueMessages: action.payload };
+    
+    case 'SET_QUEUE_DEAD_LETTER_MESSAGES':
+      return { ...state, queueDeadLetterMessages: action.payload };
+    
+    case 'SET_QUEUE_ALL_MESSAGES':
+      return { ...state, queueAllMessages: action.payload };
+    
+    // Subscription message actions
+    case 'SET_SUBSCRIPTION_MESSAGES':
+      return { ...state, subscriptionMessages: action.payload };
+    
+    case 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES':
+      return { ...state, subscriptionDeadLetterMessages: action.payload };
+    
+    case 'SET_SUBSCRIPTION_ALL_MESSAGES':
+      return { ...state, subscriptionAllMessages: action.payload };
+    
+    // Pagination actions
+    case 'SET_PAGINATION':
+      return { 
+        ...state, 
+        pagination: { 
+          ...state.pagination, 
+          ...action.payload 
+        } 
+      };
+    
+    case 'SET_PAGE':
+      return { 
+        ...state, 
+        pagination: { 
+          ...state.pagination, 
+          currentPage: action.payload 
+        } 
+      };
+    
+    case 'SET_PAGE_SIZE':
+      return { 
+        ...state, 
+        pagination: { 
+          ...state.pagination, 
+          currentPage: 1, // Reset to first page when changing page size
+          pageSize: action.payload 
+        } 
+      };
     
     default:
       return state;
@@ -697,55 +760,89 @@ export function AppProvider({ children }) {
 
   const selectQueue = async (queue) => {
     dispatch({ type: 'SET_SELECTED_QUEUE', payload: queue });
+    // Load queue messages when selecting
     await loadQueueMessages(queue.name);
   };
 
   const selectTopic = (topic) => {
     dispatch({ type: 'SET_SELECTED_TOPIC', payload: topic });
-    // Don't automatically load subscriptions - let user expand to see them
   };
 
   const selectSubscription = async (subscription) => {
+    console.log(`🎯 === SUBSCRIPTION SELECTION STARTED ===`);
+    console.log(`📋 Subscription:`, subscription);
+    console.log(`📊 Current state before selection:`, {
+      subscriptionMessages: state.subscriptionMessages.length,
+      messageFilter: state.messageFilter,
+      loading: state.loading
+    });
+    
+    console.log(`🔄 Dispatching SET_SELECTED_SUBSCRIPTION...`);
     dispatch({ type: 'SET_SELECTED_SUBSCRIPTION', payload: subscription });
-    await loadAllSubscriptionMessages(subscription.topicName, subscription.name);
-    setMessageFilter('all');
+    
+    console.log(`📱 Starting to load subscription messages...`);
+    try {
+      await loadSubscriptionMessages(subscription.topicName, subscription.name);
+      console.log(`✅ === SUBSCRIPTION SELECTION COMPLETED ===`);
+    } catch (error) {
+      console.error(`❌ Error during subscription selection:`, error);
+    }
   };
 
-  const loadQueueMessages = async (queueName, count = null) => {
+  const loadQueueMessages = async (queueName) => {
     if (!state.activeConnection) return;
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      // Clear existing messages first to avoid stale state
-      dispatch({ type: 'SET_MESSAGES', payload: [] });
+      // Clear existing queue messages first
+      console.log(`🔄 Loading all queue messages: ${queueName}`);
+      dispatch({ type: 'SET_QUEUE_MESSAGES', payload: [] });
       
-      const actualCount = count || state.messageCount;
-      const maxMessages = actualCount === 'all' ? 1000 : actualCount;
+      // Fetch all messages (limit to 10,000 for memory management)
+      const maxMessages = 10000;
+      console.log(`📥 Fetching up to ${maxMessages} queue messages from Azure Service Bus...`);
+      
       const messages = await azureServiceBusService.peekMessages(
         state.activeConnection.id, 
         queueName, 
         maxMessages
       );
-      dispatch({ type: 'SET_MESSAGES', payload: messages });
+      
+      console.log(`✅ Received ${messages.length} queue messages from Azure Service Bus`);
+      dispatch({ type: 'SET_QUEUE_MESSAGES', payload: messages });
+      
+      // Set up pagination
+      dispatch({ type: 'SET_PAGINATION', payload: { 
+        currentPage: 1, 
+        totalItems: messages.length 
+      }});
+      
+      if (messages.length >= maxMessages) {
+        console.warn(`⚠️  Reached maximum limit of ${maxMessages} messages. There may be more messages available.`);
+      }
+      
     } catch (error) {
+      console.error('❌ Error loading queue messages:', error);
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
-  const loadSubscriptionMessages = async (topicName, subscriptionName, count = null) => {
+  const loadSubscriptionMessages = async (topicName, subscriptionName) => {
     if (!state.activeConnection) return;
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      // Clear existing messages first to avoid stale state
-      dispatch({ type: 'SET_MESSAGES', payload: [] });
+      // Clear existing subscription messages first
+      console.log(`🔄 Loading all subscription messages: ${topicName}/${subscriptionName}`);
+      dispatch({ type: 'SET_SUBSCRIPTION_MESSAGES', payload: [] });
       
-      const actualCount = count || state.messageCount;
-      const maxMessages = actualCount === 'all' ? 1000 : actualCount;
+      // Fetch all messages (limit to 10,000 for memory management)
+      const maxMessages = 10000;
+      console.log(`📥 Fetching up to ${maxMessages} subscription messages from Azure Service Bus...`);
       
       const messages = await azureServiceBusService.peekSubscriptionMessages(
         state.activeConnection.id, 
@@ -754,53 +851,84 @@ export function AppProvider({ children }) {
         maxMessages
       );
       
-      dispatch({ type: 'SET_MESSAGES', payload: messages });
+      console.log(`✅ Received ${messages.length} subscription messages from Azure Service Bus`);
+      dispatch({ type: 'SET_SUBSCRIPTION_MESSAGES', payload: messages });
+      
+      // Set up pagination
+      dispatch({ type: 'SET_PAGINATION', payload: { 
+        currentPage: 1, 
+        totalItems: messages.length 
+      }});
+      
+      if (messages.length >= maxMessages) {
+        console.warn(`⚠️  Reached maximum limit of ${maxMessages} subscription messages. There may be more messages available.`);
+      }
+      
     } catch (error) {
-      console.error('loadSubscriptionMessages error:', error);
+      console.error('❌ Error loading subscription messages:', error);
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
-  const loadSubscriptionDeadLetterMessages = async (topicName, subscriptionName, count = null) => {
+  const loadSubscriptionDeadLetterMessages = async (topicName, subscriptionName) => {
     if (!state.activeConnection) return;
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      // Clear existing dead letter messages first to avoid stale state
-      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: [] });
+      // Clear existing subscription dead letter messages first
+      console.log(`🔄 Loading all subscription dead letter messages: ${topicName}/${subscriptionName}`);
+      dispatch({ type: 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES', payload: [] });
       
-      const actualCount = count || state.messageCount;
-      const maxMessages = actualCount === 'all' ? 1000 : actualCount;
+      // Fetch all dead letter messages (limit to 10,000 for memory management)
+      const maxMessages = 10000;
+      console.log(`📥 Fetching up to ${maxMessages} subscription dead letter messages from Azure Service Bus...`);
+      
       const messages = await azureServiceBusService.getSubscriptionDeadLetterMessages(
         state.activeConnection.id, 
         topicName, 
         subscriptionName, 
         maxMessages
       );
-      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: messages });
+      
+      console.log(`✅ Received ${messages.length} subscription dead letter messages from Azure Service Bus`);
+      dispatch({ type: 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES', payload: messages });
+      
+      // Set up pagination
+      dispatch({ type: 'SET_PAGINATION', payload: { 
+        currentPage: 1, 
+        totalItems: messages.length 
+      }});
+      
+      if (messages.length >= maxMessages) {
+        console.warn(`⚠️  Reached maximum limit of ${maxMessages} subscription dead letter messages. There may be more messages available.`);
+      }
+      
     } catch (error) {
+      console.error('❌ Error loading subscription dead letter messages:', error);
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
-  const loadAllSubscriptionMessages = async (topicName, subscriptionName, count = null) => {
+  const loadAllSubscriptionMessages = async (topicName, subscriptionName) => {
     if (!state.activeConnection) return;
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      // Clear existing messages first to avoid stale state
-      dispatch({ type: 'SET_MESSAGES', payload: [] });
-      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: [] });
-      dispatch({ type: 'SET_ALL_MESSAGES', payload: [] });
+      // Clear existing subscription messages first
+      console.log(`🔄 Loading ALL subscription messages: ${topicName}/${subscriptionName}`);
+      dispatch({ type: 'SET_SUBSCRIPTION_MESSAGES', payload: [] });
+      dispatch({ type: 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES', payload: [] });
+      dispatch({ type: 'SET_SUBSCRIPTION_ALL_MESSAGES', payload: [] });
       
-      const actualCount = count || state.messageCount;
-      const maxMessages = actualCount === 'all' ? 1000 : actualCount;
+      // Fetch all messages (limit to 10,000 each for memory management)
+      const maxMessages = 10000;
+      console.log(`📥 Fetching up to ${maxMessages} messages of each type from Azure Service Bus...`);
       
       // Load both active and dead letter messages
       const [activeMessages, deadLetterMessages] = await Promise.all([
@@ -808,8 +936,10 @@ export function AppProvider({ children }) {
         azureServiceBusService.getSubscriptionDeadLetterMessages(state.activeConnection.id, topicName, subscriptionName, maxMessages)
       ]);
       
-      dispatch({ type: 'SET_MESSAGES', payload: activeMessages });
-      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: deadLetterMessages });
+      console.log(`✅ Received ${activeMessages.length} active + ${deadLetterMessages.length} dead letter subscription messages`);
+      
+      dispatch({ type: 'SET_SUBSCRIPTION_MESSAGES', payload: activeMessages });
+      dispatch({ type: 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES', payload: deadLetterMessages });
       
       // Combine messages with type indicator
       const combinedMessages = [
@@ -817,51 +947,83 @@ export function AppProvider({ children }) {
         ...deadLetterMessages.map(msg => ({ ...msg, messageType: 'deadletter' }))
       ];
       
-      dispatch({ type: 'SET_ALL_MESSAGES', payload: combinedMessages });
+      dispatch({ type: 'SET_SUBSCRIPTION_ALL_MESSAGES', payload: combinedMessages });
+      
+      // Set up pagination for combined view
+      dispatch({ type: 'SET_PAGINATION', payload: { 
+        currentPage: 1, 
+        totalItems: combinedMessages.length 
+      }});
+      
+      const totalMessages = activeMessages.length + deadLetterMessages.length;
+      if (totalMessages >= maxMessages * 2) {
+        console.warn(`⚠️  Reached maximum limit of ${maxMessages * 2} total subscription messages. There may be more messages available.`);
+      }
+      
     } catch (error) {
+      console.error('❌ Error loading all subscription messages:', error);
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
-  const loadDeadLetterMessages = async (queueName, count = null) => {
+  const loadDeadLetterMessages = async (queueName) => {
     if (!state.activeConnection) return;
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      // Clear existing dead letter messages first to avoid stale state
-      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: [] });
+      // Clear existing queue dead letter messages first
+      console.log(`🔄 Loading all queue dead letter messages: ${queueName}`);
+      dispatch({ type: 'SET_QUEUE_DEAD_LETTER_MESSAGES', payload: [] });
       
-      const actualCount = count || state.messageCount;
-      const maxMessages = actualCount === 'all' ? 1000 : actualCount;
+      // Fetch all dead letter messages (limit to 10,000 for memory management)
+      const maxMessages = 10000;
+      console.log(`📥 Fetching up to ${maxMessages} queue dead letter messages from Azure Service Bus...`);
+      
       const messages = await azureServiceBusService.getDeadLetterMessages(
         state.activeConnection.id, 
         queueName, 
         maxMessages
       );
-      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: messages });
+      
+      console.log(`✅ Received ${messages.length} queue dead letter messages from Azure Service Bus`);
+      dispatch({ type: 'SET_QUEUE_DEAD_LETTER_MESSAGES', payload: messages });
+      
+      // Set up pagination
+      dispatch({ type: 'SET_PAGINATION', payload: { 
+        currentPage: 1, 
+        totalItems: messages.length 
+      }});
+      
+      if (messages.length >= maxMessages) {
+        console.warn(`⚠️  Reached maximum limit of ${maxMessages} dead letter messages. There may be more messages available.`);
+      }
+      
     } catch (error) {
+      console.error('❌ Error loading queue dead letter messages:', error);
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
-  const loadAllMessageTypes = async (queueName, count = null) => {
+  const loadAllMessageTypes = async (queueName) => {
     if (!state.activeConnection) return;
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      // Clear existing messages first to avoid stale state
-      dispatch({ type: 'SET_MESSAGES', payload: [] });
-      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: [] });
-      dispatch({ type: 'SET_ALL_MESSAGES', payload: [] });
+      // Clear existing queue messages first
+      console.log(`🔄 Loading ALL queue message types: ${queueName}`);
+      dispatch({ type: 'SET_QUEUE_MESSAGES', payload: [] });
+      dispatch({ type: 'SET_QUEUE_DEAD_LETTER_MESSAGES', payload: [] });
+      dispatch({ type: 'SET_QUEUE_ALL_MESSAGES', payload: [] });
       
-      const actualCount = count || state.messageCount;
-      const maxMessages = actualCount === 'all' ? 1000 : actualCount;
+      // Fetch all messages (limit to 10,000 each for memory management)
+      const maxMessages = 10000;
+      console.log(`📥 Fetching up to ${maxMessages} messages of each type from Azure Service Bus...`);
       
       // Load both active and dead letter messages
       const [activeMessages, deadLetterMessages] = await Promise.all([
@@ -869,8 +1031,10 @@ export function AppProvider({ children }) {
         azureServiceBusService.getDeadLetterMessages(state.activeConnection.id, queueName, maxMessages)
       ]);
       
-      dispatch({ type: 'SET_MESSAGES', payload: activeMessages });
-      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: deadLetterMessages });
+      console.log(`✅ Received ${activeMessages.length} active + ${deadLetterMessages.length} dead letter queue messages`);
+      
+      dispatch({ type: 'SET_QUEUE_MESSAGES', payload: activeMessages });
+      dispatch({ type: 'SET_QUEUE_DEAD_LETTER_MESSAGES', payload: deadLetterMessages });
       
       // Combine messages with type indicator
       const combinedMessages = [
@@ -878,8 +1042,21 @@ export function AppProvider({ children }) {
         ...deadLetterMessages.map(msg => ({ ...msg, messageType: 'deadletter' }))
       ];
       
-      dispatch({ type: 'SET_ALL_MESSAGES', payload: combinedMessages });
+      dispatch({ type: 'SET_QUEUE_ALL_MESSAGES', payload: combinedMessages });
+      
+      // Set up pagination for combined view
+      dispatch({ type: 'SET_PAGINATION', payload: { 
+        currentPage: 1, 
+        totalItems: combinedMessages.length 
+      }});
+      
+      const totalMessages = activeMessages.length + deadLetterMessages.length;
+      if (totalMessages >= maxMessages * 2) {
+        console.warn(`⚠️  Reached maximum limit of ${maxMessages * 2} total messages. There may be more messages available.`);
+      }
+      
     } catch (error) {
+      console.error('❌ Error loading all queue message types:', error);
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -979,6 +1156,27 @@ export function AppProvider({ children }) {
     dispatch({ type: 'CLEAR_ERROR' });
   };
 
+  // Pagination helper functions
+  const setPage = (page) => {
+    dispatch({ type: 'SET_PAGE', payload: page });
+  };
+
+  const setPageSize = (pageSize) => {
+    dispatch({ type: 'SET_PAGE_SIZE', payload: pageSize });
+  };
+
+  const getPaginatedMessages = (messages) => {
+    const { currentPage, pageSize } = state.pagination;
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return messages.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = (totalItems = null) => {
+    const items = totalItems || state.pagination.totalItems;
+    return Math.ceil(items / state.pagination.pageSize);
+  };
+
   const value = {
     ...state,
     createConnection,
@@ -1012,6 +1210,11 @@ export function AppProvider({ children }) {
     receiveMessage,
     setMessagePreview,
     clearError,
+    // Pagination functions
+    setPage,
+    setPageSize,
+    getPaginatedMessages,
+    getTotalPages,
   };
 
   return (

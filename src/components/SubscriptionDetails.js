@@ -12,40 +12,85 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import MessageList from './MessageList';
+import Pagination from './Pagination';
 
 function SubscriptionDetails() {
   const [activeTab, setActiveTab] = useState('messages');
-  const [showLoadAllOption, setShowLoadAllOption] = useState(false);
-  const dropdownRef = useRef(null);
+  
+  // Local pagination state for each filter to avoid conflicts
+  const [localPagination, setLocalPagination] = useState({
+    active: { currentPage: 1, pageSize: 10 },
+    deadletter: { currentPage: 1, pageSize: 10 },
+    all: { currentPage: 1, pageSize: 10 }
+  });
+  
   const { 
     selectedSubscription, 
-    messages,
-    deadLetterMessages,
-    allMessages,
+    subscriptionMessages, 
+    subscriptionDeadLetterMessages,
+    subscriptionAllMessages,
     messageFilter,
     loading,
-    messageCount,
+    pagination, // Keep this for compatibility, but we'll use localPagination
     loadSubscriptionMessages,
     loadSubscriptionDeadLetterMessages,
     loadAllSubscriptionMessages,
     setMessageFilter,
-    setMessageCount,
-    setMessagePreview
+    setMessagePreview,
+    setPage, // Keep for global compatibility, but not used for display
+    setPageSize,
+    getPaginatedMessages, // We'll create our own version
+    getTotalPages, // We'll create our own version
+    activeConnection,
+    state
   } = useApp();
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowLoadAllOption(false);
-      }
-    }
+  // Get current pagination for the active filter
+  const getCurrentPagination = () => {
+    const filterKey = messageFilter === 'active' ? 'active' : 
+                     messageFilter === 'deadletter' ? 'deadletter' : 'all';
+    return localPagination[filterKey];
+  };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+  // Update local pagination for a specific filter
+  const updateLocalPagination = (filter, updates) => {
+    const filterKey = filter === 'active' ? 'active' : 
+                     filter === 'deadletter' ? 'deadletter' : 'all';
+    
+    setLocalPagination(prev => ({
+      ...prev,
+      [filterKey]: { ...prev[filterKey], ...updates }
+    }));
+  };
+
+  // Set page for current filter
+  const setLocalPage = (page) => {
+    const filterKey = messageFilter === 'active' ? 'active' : 
+                     messageFilter === 'deadletter' ? 'deadletter' : 'all';
+    updateLocalPagination(messageFilter, { currentPage: page });
+  };
+
+  // Set page size for current filter
+  const setLocalPageSize = (pageSize) => {
+    const filterKey = messageFilter === 'active' ? 'active' : 
+                     messageFilter === 'deadletter' ? 'deadletter' : 'all';
+    updateLocalPagination(messageFilter, { pageSize, currentPage: 1 }); // Reset to page 1 when changing page size
+  };
+
+  // Get paginated messages for current filter
+  const getLocalPaginatedMessages = (messages) => {
+    const currentPagination = getCurrentPagination();
+    const { currentPage, pageSize } = currentPagination;
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return messages.slice(startIndex, endIndex);
+  };
+
+  // Get total pages for current filter
+  const getLocalTotalPages = (totalItems) => {
+    const currentPagination = getCurrentPagination();
+    return Math.ceil(totalItems / currentPagination.pageSize);
+  };
 
   const handlePeekMessage = (message) => {
     setMessagePreview(message);
@@ -54,45 +99,94 @@ function SubscriptionDetails() {
   const handleRefresh = async () => {
     if (!selectedSubscription) return;
     
-    // Always refresh all message types to maintain state consistency across filters
-    // This ensures that switching filters after refresh will still work correctly
-    await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name, messageCount);
-    
-    // The current messageFilter state is preserved, so the user sees the same view
-    // but with refreshed data that's consistent across all filter types
+    if (messageFilter === 'all') {
+      await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
+    } else if (messageFilter === 'deadletter') {
+      await loadSubscriptionDeadLetterMessages(selectedSubscription.topicName, selectedSubscription.name);
+    } else {
+      await loadSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
+    }
   };
 
   const handleFilterClick = async (filter) => {
     if (!selectedSubscription) return;
     
+    console.log(`🎯 handleFilterClick called with filter: ${filter}`);
+    console.log(`📊 Current state:`, {
+      subscriptionMessages: subscriptionMessages.length,
+      subscriptionDeadLetterMessages: subscriptionDeadLetterMessages.length,
+      subscriptionAllMessages: subscriptionAllMessages.length,
+      currentFilter: messageFilter
+    });
+    
+    // Set the new filter first
+    setMessageFilter(filter);
     setActiveTab('messages'); // Switch to messages tab when filtering
     
-    // Always ensure we have all message types loaded if switching to 'all'
-    // For individual filters, we can use the cached data from 'all' if available
+    // Determine which messages we need and if we need to load them
+    let needsLoading = false;
+    let targetMessages = [];
+    
     if (filter === 'all') {
-      // Only reload if we don't have all messages or if the combined count doesn't match individual arrays
-      const needsReload = allMessages.length === 0 || 
-                         (messages.length === 0 && deadLetterMessages.length === 0);
-      if (needsReload) {
-        await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name, messageCount);
-      }
+      targetMessages = subscriptionAllMessages;
+      needsLoading = subscriptionAllMessages.length === 0;
+    } else if (filter === 'deadletter') {
+      targetMessages = subscriptionDeadLetterMessages;
+      needsLoading = subscriptionDeadLetterMessages.length === 0;
+    } else if (filter === 'active') {
+      targetMessages = subscriptionMessages;
+      needsLoading = subscriptionMessages.length === 0;
     }
     
-    // Set the filter after potential loading to avoid showing empty state
-    setMessageFilter(filter);
+    console.log(`🔍 Target messages:`, {
+      filter,
+      targetMessagesLength: targetMessages.length,
+      needsLoading
+    });
+    
+    // Only load if we don't have the data yet
+    if (needsLoading) {
+      console.log(`📥 Loading data for filter: ${filter}`);
+      if (filter === 'all') {
+        await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
+      } else if (filter === 'deadletter') {
+        await loadSubscriptionDeadLetterMessages(selectedSubscription.topicName, selectedSubscription.name);
+      } else if (filter === 'active') {
+        await loadSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
+      }
+    } else {
+      console.log(`✨ Using cached data for filter: ${filter}, setting up pagination...`);
+      // We have the data, just update pagination for this filter
+      updateLocalPagination(filter, { currentPage: 1 });
+    }
   };
 
   // Get the current messages based on filter
   const getCurrentMessages = () => {
+    let currentMessages;
     switch (messageFilter) {
       case 'all':
-        return allMessages;
+        currentMessages = subscriptionAllMessages;
+        break;
       case 'deadletter':
-        return deadLetterMessages;
+        currentMessages = subscriptionDeadLetterMessages;
+        break;
       case 'active':
       default:
-        return messages;
+        currentMessages = subscriptionMessages;
+        break;
     }
+    
+    console.log(`🔍 getCurrentMessages() called:`, {
+      filter: messageFilter,
+      subscriptionMessages: subscriptionMessages.length,
+      subscriptionDeadLetterMessages: subscriptionDeadLetterMessages.length,
+      subscriptionAllMessages: subscriptionAllMessages.length,
+      currentMessages: currentMessages.length,
+      selectedSubscription: selectedSubscription?.name
+    });
+    
+    return currentMessages;
   };
 
   const getCurrentMessageCount = () => {
@@ -100,21 +194,29 @@ function SubscriptionDetails() {
     return currentMessages.length;
   };
 
-  const handleMessageCountChange = async (newCount) => {
-    if (!selectedSubscription) return;
+  const getPaginatedCurrentMessages = () => {
+    const currentMessages = getCurrentMessages();
+    const paginatedMessages = getLocalPaginatedMessages(currentMessages);
     
-    setMessageCount(newCount);
-    setShowLoadAllOption(false);
+    console.log(`📄 getPaginatedCurrentMessages() called:`, {
+      totalMessages: currentMessages.length,
+      currentPage: getCurrentPagination().currentPage,
+      pageSize: getCurrentPagination().pageSize,
+      paginatedCount: paginatedMessages.length,
+      pagination: getCurrentPagination()
+    });
     
-    // Reload messages with new count based on current filter
-    if (messageFilter === 'all') {
-      await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name, newCount);
-    } else if (messageFilter === 'deadletter') {
-      await loadSubscriptionDeadLetterMessages(selectedSubscription.topicName, selectedSubscription.name, newCount);
-    } else {
-      await loadSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name, newCount);
-    }
+    return paginatedMessages;
   };
+
+  console.log(`🖥️  SubscriptionDetails render:`, {
+    selectedSubscription: selectedSubscription?.name,
+    messageFilter,
+    subscriptionMessages: subscriptionMessages.length,
+    subscriptionDeadLetterMessages: subscriptionDeadLetterMessages.length,
+    subscriptionAllMessages: subscriptionAllMessages.length,
+    pagination: getCurrentPagination()
+  });
 
   if (!selectedSubscription) return null;
 
@@ -133,35 +235,6 @@ function SubscriptionDetails() {
             </p>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-secondary-600">Show:</span>
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setShowLoadAllOption(!showLoadAllOption)}
-                className="flex items-center space-x-2 px-4 py-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 rounded-lg transition-colors"
-              >
-                <span>{messageCount === 'all' ? 'All' : messageCount} messages</span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${showLoadAllOption ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {showLoadAllOption && (
-                <div className="absolute right-0 top-full mt-1 bg-white border border-secondary-200 rounded-lg shadow-lg z-10 min-w-32">
-                  {[10, 20, 50, 100, 'all'].map((count) => (
-                    <button
-                      key={count}
-                      onClick={() => handleMessageCountChange(count)}
-                      className={`w-full text-left px-4 py-2 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg ${
-                        messageCount === count 
-                          ? 'bg-primary-50 text-primary-700' 
-                          : 'text-secondary-700 hover:bg-secondary-50'
-                      }`}
-                    >
-                      {count === 'all' ? 'All messages' : `${count} messages`}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            
             <button
               onClick={handleRefresh}
               disabled={loading}
@@ -279,20 +352,32 @@ function SubscriptionDetails() {
       {/* Content */}
       <div className="flex-1 flex flex-col min-h-0">
         {activeTab === 'messages' && (
-          <div className="flex-1 min-h-0">
-            <MessageList 
-              messages={getCurrentMessages()}
-              onPeekMessage={handlePeekMessage}
-              loading={loading}
-              emptyMessage={
-                messageFilter === 'deadletter' 
-                  ? "No dead letter messages in subscription" 
-                  : messageFilter === 'all' 
-                    ? "No messages in subscription" 
-                    : "No active messages in subscription"
-              }
-              isDeadLetter={messageFilter === 'deadletter'}
-              showMessageType={messageFilter === 'all'}
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 min-h-0">
+              <MessageList 
+                messages={getPaginatedCurrentMessages()}
+                onPeekMessage={handlePeekMessage}
+                loading={loading}
+                emptyMessage={
+                  messageFilter === 'deadletter' 
+                    ? "No dead letter messages in subscription" 
+                    : messageFilter === 'all' 
+                      ? "No messages in subscription" 
+                      : "No active messages in subscription"
+                }
+                isDeadLetter={messageFilter === 'deadletter'}
+                showMessageType={messageFilter === 'all'}
+              />
+            </div>
+            
+            {/* Pagination */}
+            <Pagination
+              currentPage={getCurrentPagination().currentPage}
+              totalPages={getLocalTotalPages(getCurrentMessageCount())}
+              pageSize={getCurrentPagination().pageSize}
+              totalItems={getCurrentMessageCount()}
+              onPageChange={setLocalPage}
+              onPageSizeChange={setLocalPageSize}
             />
           </div>
         )}

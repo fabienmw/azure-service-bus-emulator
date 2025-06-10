@@ -13,42 +13,30 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import MessageList from './MessageList';
+import Pagination from './Pagination';
 
 function QueueDetails() {
   const [activeTab, setActiveTab] = useState('messages');
-  const [showLoadAllOption, setShowLoadAllOption] = useState(false);
-  const dropdownRef = useRef(null);
   const { 
     selectedQueue, 
-    messages, 
-    deadLetterMessages,
-    allMessages,
+    queueMessages, 
+    queueDeadLetterMessages,
+    queueAllMessages,
     messageFilter,
     loading,
-    messageCount,
+    pagination,
     loadQueueMessages,
     loadDeadLetterMessages,
     loadAllMessageTypes,
     setMessageFilter,
-    setMessageCount,
     receiveMessage,
     setMessagePreview,
+    setPage,
+    setPageSize,
+    getPaginatedMessages,
+    getTotalPages,
     activeConnection
   } = useApp();
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowLoadAllOption(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
 
   const handlePeekMessage = (message) => {
     setMessagePreview(message);
@@ -71,11 +59,11 @@ function QueueDetails() {
     if (!selectedQueue) return;
     
     if (messageFilter === 'all') {
-      loadAllMessageTypes(selectedQueue.name, messageCount);
+      loadAllMessageTypes(selectedQueue.name);
     } else if (messageFilter === 'deadletter') {
-      loadDeadLetterMessages(selectedQueue.name, messageCount);
+      loadDeadLetterMessages(selectedQueue.name);
     } else {
-      loadQueueMessages(selectedQueue.name, messageCount);
+      loadQueueMessages(selectedQueue.name);
     }
   };
 
@@ -86,11 +74,11 @@ function QueueDetails() {
     setActiveTab('messages'); // Switch to messages tab when filtering
     
     if (filter === 'all') {
-      await loadAllMessageTypes(selectedQueue.name, messageCount);
+      await loadAllMessageTypes(selectedQueue.name);
     } else if (filter === 'deadletter') {
-      await loadDeadLetterMessages(selectedQueue.name, messageCount);
+      await loadDeadLetterMessages(selectedQueue.name);
     } else if (filter === 'active') {
-      await loadQueueMessages(selectedQueue.name, messageCount);
+      await loadQueueMessages(selectedQueue.name);
     }
   };
 
@@ -98,12 +86,12 @@ function QueueDetails() {
   const getCurrentMessages = () => {
     switch (messageFilter) {
       case 'all':
-        return allMessages;
+        return queueAllMessages;
       case 'deadletter':
-        return deadLetterMessages;
+        return queueDeadLetterMessages;
       case 'active':
       default:
-        return messages;
+        return queueMessages;
     }
   };
 
@@ -112,20 +100,9 @@ function QueueDetails() {
     return currentMessages.length;
   };
 
-  const handleMessageCountChange = async (newCount) => {
-    if (!selectedQueue) return;
-    
-    setMessageCount(newCount);
-    setShowLoadAllOption(false);
-    
-    // Reload messages with new count
-    if (messageFilter === 'all') {
-      await loadAllMessageTypes(selectedQueue.name, newCount);
-    } else if (messageFilter === 'deadletter') {
-      await loadDeadLetterMessages(selectedQueue.name, newCount);
-    } else {
-      await loadQueueMessages(selectedQueue.name, newCount);
-    }
+  const getPaginatedCurrentMessages = () => {
+    const currentMessages = getCurrentMessages();
+    return getPaginatedMessages(currentMessages);
   };
 
   if (!selectedQueue) return null;
@@ -252,7 +229,7 @@ function QueueDetails() {
               onClick={() => {
                 setActiveTab('deadletter');
                 setMessageFilter('deadletter');
-                loadDeadLetterMessages(selectedQueue.name, messageCount);
+                loadDeadLetterMessages(selectedQueue.name);
               }}
               className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'deadletter'
@@ -260,7 +237,7 @@ function QueueDetails() {
                   : 'border-transparent text-secondary-500 hover:text-secondary-700'
               }`}
             >
-              Dead Letter Queue ({deadLetterMessages.length}{selectedQueue.deadLetterMessageCount > deadLetterMessages.length ? `/${selectedQueue.deadLetterMessageCount}` : ''})
+              Dead Letter Queue ({queueDeadLetterMessages.length}{selectedQueue.deadLetterMessageCount > queueDeadLetterMessages.length ? `/${selectedQueue.deadLetterMessageCount}` : ''})
             </button>
             <button
               onClick={() => setActiveTab('settings')}
@@ -273,77 +250,60 @@ function QueueDetails() {
               Settings
             </button>
           </div>
-
-          {/* Message Count Selector */}
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-secondary-600">Show:</span>
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setShowLoadAllOption(!showLoadAllOption)}
-                className="flex items-center space-x-2 px-3 py-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 rounded-lg transition-colors text-sm"
-              >
-                <span>{messageCount === 'all' ? 'All' : messageCount} messages</span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${showLoadAllOption ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {showLoadAllOption && (
-                <div className="absolute right-0 top-full mt-1 bg-white border border-secondary-200 rounded-lg shadow-lg z-10 min-w-32">
-                  {[10, 20, 50, 100, 'all'].map((count) => (
-                    <button
-                      key={count}
-                      onClick={() => handleMessageCountChange(count)}
-                      className={`w-full text-left px-4 py-2 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg ${
-                        messageCount === count 
-                          ? 'bg-primary-50 text-primary-700' 
-                          : 'text-secondary-700 hover:bg-secondary-50'
-                      }`}
-                    >
-                      {count === 'all' ? 'All messages' : `${count} messages`}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            <button
-              onClick={handleRefresh}
-              disabled={loading}
-              className="flex items-center space-x-2 px-3 py-2 bg-primary-100 hover:bg-primary-200 disabled:bg-primary-50 text-primary-700 disabled:text-primary-400 rounded-lg transition-colors text-sm"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
-            </button>
-          </div>
         </div>
       </div>
 
       {/* Content */}
       <div className="flex-1 flex flex-col min-h-0">
         {activeTab === 'messages' && (
-          <div className="flex-1 min-h-0">
-            <MessageList 
-              messages={getCurrentMessages()}
-              onPeekMessage={handlePeekMessage}
-              loading={loading}
-              emptyMessage={
-                messageFilter === 'all' ? "No messages found" :
-                messageFilter === 'deadletter' ? "No dead letter messages found" :
-                "No active messages found"
-              }
-              isDeadLetter={messageFilter === 'deadletter'}
-              showMessageType={messageFilter === 'all'}
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 min-h-0">
+              <MessageList 
+                messages={getPaginatedCurrentMessages()}
+                onPeekMessage={handlePeekMessage}
+                loading={loading}
+                emptyMessage={
+                  messageFilter === 'all' ? "No messages found" :
+                  messageFilter === 'deadletter' ? "No dead letter messages found" :
+                  "No active messages found"
+                }
+                isDeadLetter={messageFilter === 'deadletter'}
+                showMessageType={messageFilter === 'all'}
+              />
+            </div>
+            
+            {/* Pagination */}
+            <Pagination
+              currentPage={pagination.currentPage}
+              totalPages={getTotalPages(getCurrentMessageCount())}
+              pageSize={pagination.pageSize}
+              totalItems={getCurrentMessageCount()}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
             />
           </div>
         )}
         
         {activeTab === 'deadletter' && (
-          <div className="flex-1 min-h-0">
-            <MessageList 
-              messages={deadLetterMessages}
-              onPeekMessage={handlePeekMessage}
-              loading={loading}
-              emptyMessage="No messages in dead letter queue"
-              isDeadLetter={true}
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 min-h-0">
+              <MessageList 
+                messages={getPaginatedMessages(queueDeadLetterMessages)}
+                onPeekMessage={handlePeekMessage}
+                loading={loading}
+                emptyMessage="No messages in dead letter queue"
+                isDeadLetter={true}
+              />
+            </div>
+            
+            {/* Pagination */}
+            <Pagination
+              currentPage={pagination.currentPage}
+              totalPages={getTotalPages(queueDeadLetterMessages.length)}
+              pageSize={pagination.pageSize}
+              totalItems={queueDeadLetterMessages.length}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
             />
           </div>
         )}
