@@ -2,11 +2,63 @@ const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
 const { ServiceBusAdministrationClient, ServiceBusClient } = require('@azure/service-bus');
+const { autoUpdater } = require('electron-updater');
 
 let mainWindow;
 
 // Azure Service Bus connection management
 const connections = new Map();
+
+// Configure auto-updater
+if (!isDev) {
+  autoUpdater.checkForUpdatesAndNotify();
+}
+
+// Auto-updater events
+autoUpdater.on('checking-for-update', () => {
+  console.log('Checking for update...');
+  if (mainWindow) {
+    mainWindow.webContents.send('update-checking');
+  }
+});
+
+autoUpdater.on('update-available', (info) => {
+  console.log('Update available:', info);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-available', info);
+  }
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  console.log('Update not available:', info);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-not-available', info);
+  }
+});
+
+autoUpdater.on('error', (err) => {
+  console.log('Error in auto-updater:', err);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-error', err);
+  }
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  let log_message = "Download speed: " + progressObj.bytesPerSecond;
+  log_message = log_message + ' - Downloaded ' + progressObj.percent + '%';
+  log_message = log_message + ' (' + progressObj.transferred + "/" + progressObj.total + ')';
+  console.log(log_message);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-download-progress', progressObj);
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('Update downloaded:', info);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-downloaded', info);
+  }
+});
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -477,6 +529,22 @@ ipcMain.handle('azure-sb-receive-message', async (event, { connectionId, queueNa
   } catch (error) {
     return { success: false, error: error.message };
   }
+});
+
+// IPC handlers for auto-updater
+ipcMain.handle('check-for-updates', async () => {
+  if (!isDev) {
+    return await autoUpdater.checkForUpdates();
+  }
+  return null;
+});
+
+ipcMain.handle('quit-and-install', () => {
+  autoUpdater.quitAndInstall();
+});
+
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
 });
 
 function createWindow() {
