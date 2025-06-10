@@ -102,7 +102,7 @@ class AzureServiceBusElectronService {
     }
 
     try {
-      const result = await ipcRenderer.invoke('azure-sb-peek-messages', { connectionId, queueName, maxMessages });
+      const result = await ipcRenderer.invoke('azure-sb-get-queue-messages', { connectionId, queueName, maxMessages });
       if (result.success) {
         return result.data;
       } else {
@@ -136,7 +136,7 @@ class AzureServiceBusElectronService {
     }
 
     try {
-      const result = await ipcRenderer.invoke('azure-sb-get-dead-letter-messages', { connectionId, queueName, maxMessages });
+      const result = await ipcRenderer.invoke('azure-sb-get-queue-dead-letter-messages', { connectionId, queueName, maxMessages });
       if (result.success) {
         return result.data;
       } else {
@@ -188,7 +188,7 @@ class AzureServiceBusElectronService {
     }
 
     try {
-      const result = await ipcRenderer.invoke('azure-sb-peek-subscription-messages', { 
+      const result = await ipcRenderer.invoke('azure-sb-get-subscription-messages', { 
         connectionId, 
         topicName, 
         subscriptionName, 
@@ -269,6 +269,29 @@ class AzureServiceBusElectronService {
       }
     } catch (error) {
       throw new Error(`Failed to send topic message: ${error.message}`);
+    }
+  }
+
+  async getAllSubscriptionMessages(connectionId, topicName, subscriptionName, maxMessages = 10) {
+    if (!this.isElectron) {
+      throw new Error('Azure Service Bus operations are only supported in Electron mode. Please run the application using "npm run electron-dev".');
+    }
+
+    try {
+      const result = await ipcRenderer.invoke('azure-sb-get-all-subscription-messages', { 
+        connectionId, 
+        topicName, 
+        subscriptionName, 
+        maxMessages 
+      });
+      
+      if (result.success) {
+        return result.data;
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      throw new Error(`Failed to get all subscription messages: ${error.message}`);
     }
   }
 

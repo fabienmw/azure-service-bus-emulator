@@ -106,16 +106,21 @@ ipcMain.handle('azure-sb-get-queue-details', async (event, { connectionId, queue
   }
 });
 
-ipcMain.handle('azure-sb-peek-messages', async (event, { connectionId, queueName, maxMessages = 10 }) => {
+ipcMain.handle('azure-sb-get-queue-messages', async (event, { connectionId, queueName, maxMessages = 10 }) => {
   const connection = connections.get(connectionId);
   if (!connection) {
     return { success: false, error: 'Connection not found' };
   }
 
   try {
-    const receiver = connection.client.createReceiver(queueName);
+    // Create a fresh ServiceBusClient for this operation to avoid state pollution
+    const { ServiceBusClient } = require('@azure/service-bus');
+    const freshClient = new ServiceBusClient(connection.connectionString);
+    
+    const receiver = freshClient.createReceiver(queueName);
     const messages = await receiver.peekMessages(maxMessages);
     await receiver.close();
+    await freshClient.close();
     
     const mappedMessages = messages.map(msg => ({
       messageId: msg.messageId,
@@ -127,7 +132,7 @@ ipcMain.handle('azure-sb-peek-messages', async (event, { connectionId, queueName
       enqueuedTimeUtc: msg.enqueuedTimeUtc,
       expiresAtUtc: msg.expiresAtUtc,
       deliveryCount: msg.deliveryCount,
-      applicationProperties: msg.applicationProperties,
+      applicationProperties: msg.applicationProperties
     }));
     
     return { success: true, data: mappedMessages };
@@ -136,56 +141,21 @@ ipcMain.handle('azure-sb-peek-messages', async (event, { connectionId, queueName
   }
 });
 
-ipcMain.handle('azure-sb-receive-message', async (event, { connectionId, queueName }) => {
+ipcMain.handle('azure-sb-get-queue-dead-letter-messages', async (event, { connectionId, queueName, maxMessages = 10 }) => {
   const connection = connections.get(connectionId);
   if (!connection) {
     return { success: false, error: 'Connection not found' };
   }
 
   try {
-    const receiver = connection.client.createReceiver(queueName);
-    const messages = await receiver.receiveMessages(1, { maxWaitTimeInMs: 5000 });
+    // Create a fresh ServiceBusClient for this operation to avoid state pollution
+    const { ServiceBusClient } = require('@azure/service-bus');
+    const freshClient = new ServiceBusClient(connection.connectionString);
     
-    if (messages.length > 0) {
-      const message = messages[0];
-      await receiver.completeMessage(message);
-      await receiver.close();
-      
-      const messageData = {
-        messageId: message.messageId,
-        body: message.body,
-        label: message.label,
-        correlationId: message.correlationId,
-        sessionId: message.sessionId,
-        partitionKey: message.partitionKey,
-        enqueuedTimeUtc: message.enqueuedTimeUtc,
-        expiresAtUtc: message.expiresAtUtc,
-        deliveryCount: message.deliveryCount,
-        applicationProperties: message.applicationProperties,
-      };
-      
-      return { success: true, data: messageData };
-    }
-    
-    await receiver.close();
-    return { success: true, data: null };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('azure-sb-get-dead-letter-messages', async (event, { connectionId, queueName, maxMessages = 10 }) => {
-  const connection = connections.get(connectionId);
-  if (!connection) {
-    return { success: false, error: 'Connection not found' };
-  }
-
-  try {
-    const receiver = connection.client.createReceiver(queueName, {
-      subQueueType: 'deadLetter'
-    });
+    const receiver = freshClient.createReceiver(queueName, { subQueueType: 'deadLetter' });
     const messages = await receiver.peekMessages(maxMessages);
     await receiver.close();
+    await freshClient.close();
     
     const mappedMessages = messages.map(msg => ({
       messageId: msg.messageId,
@@ -198,8 +168,9 @@ ipcMain.handle('azure-sb-get-dead-letter-messages', async (event, { connectionId
       expiresAtUtc: msg.expiresAtUtc,
       deliveryCount: msg.deliveryCount,
       applicationProperties: msg.applicationProperties,
+      deadLetterSource: msg.deadLetterSource,
       deadLetterReason: msg.deadLetterReason,
-      deadLetterErrorDescription: msg.deadLetterErrorDescription,
+      deadLetterErrorDescription: msg.deadLetterErrorDescription
     }));
     
     return { success: true, data: mappedMessages };
@@ -269,16 +240,21 @@ ipcMain.handle('azure-sb-get-subscriptions', async (event, { connectionId, topic
   }
 });
 
-ipcMain.handle('azure-sb-peek-subscription-messages', async (event, { connectionId, topicName, subscriptionName, maxMessages = 10 }) => {
+ipcMain.handle('azure-sb-get-subscription-messages', async (event, { connectionId, topicName, subscriptionName, maxMessages = 10 }) => {
   const connection = connections.get(connectionId);
   if (!connection) {
     return { success: false, error: 'Connection not found' };
   }
 
   try {
-    const receiver = connection.client.createReceiver(topicName, subscriptionName);
+    // Create a fresh ServiceBusClient for this operation to avoid state pollution
+    const { ServiceBusClient } = require('@azure/service-bus');
+    const freshClient = new ServiceBusClient(connection.connectionString);
+    
+    const receiver = freshClient.createReceiver(topicName, subscriptionName);
     const messages = await receiver.peekMessages(maxMessages);
     await receiver.close();
+    await freshClient.close();
     
     const mappedMessages = messages.map(msg => ({
       messageId: msg.messageId,
@@ -290,7 +266,7 @@ ipcMain.handle('azure-sb-peek-subscription-messages', async (event, { connection
       enqueuedTimeUtc: msg.enqueuedTimeUtc,
       expiresAtUtc: msg.expiresAtUtc,
       deliveryCount: msg.deliveryCount,
-      applicationProperties: msg.applicationProperties,
+      applicationProperties: msg.applicationProperties
     }));
     
     return { success: true, data: mappedMessages };
@@ -306,11 +282,14 @@ ipcMain.handle('azure-sb-get-subscription-dead-letter-messages', async (event, {
   }
 
   try {
-    const receiver = connection.client.createReceiver(topicName, subscriptionName, {
-      subQueueType: 'deadLetter'
-    });
+    // Create a fresh ServiceBusClient for this operation to avoid state pollution
+    const { ServiceBusClient } = require('@azure/service-bus');
+    const freshClient = new ServiceBusClient(connection.connectionString);
+    
+    const receiver = freshClient.createReceiver(topicName, subscriptionName, { subQueueType: 'deadLetter' });
     const messages = await receiver.peekMessages(maxMessages);
     await receiver.close();
+    await freshClient.close();
     
     const mappedMessages = messages.map(msg => ({
       messageId: msg.messageId,
@@ -325,10 +304,86 @@ ipcMain.handle('azure-sb-get-subscription-dead-letter-messages', async (event, {
       applicationProperties: msg.applicationProperties,
       deadLetterSource: msg.deadLetterSource,
       deadLetterReason: msg.deadLetterReason,
-      deadLetterErrorDescription: msg.deadLetterErrorDescription,
+      deadLetterErrorDescription: msg.deadLetterErrorDescription
     }));
     
     return { success: true, data: mappedMessages };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('azure-sb-get-all-subscription-messages', async (event, { connectionId, topicName, subscriptionName, maxMessages = 10 }) => {
+  const connection = connections.get(connectionId);
+  if (!connection) {
+    return { success: false, error: 'Connection not found' };
+  }
+
+  try {
+    // Create a fresh ServiceBusClient for this operation to avoid state pollution
+    const { ServiceBusClient } = require('@azure/service-bus');
+    const freshClient = new ServiceBusClient(connection.connectionString);
+    
+    // Fetch active messages
+    const activeReceiver = freshClient.createReceiver(topicName, subscriptionName);
+    const activeMessages = await activeReceiver.peekMessages(maxMessages);
+    await activeReceiver.close();
+    
+    // Small delay to ensure clean separation
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Fetch dead letter messages
+    const deadLetterReceiver = freshClient.createReceiver(topicName, subscriptionName, {
+      subQueueType: 'deadLetter'
+    });
+    const deadLetterMessages = await deadLetterReceiver.peekMessages(maxMessages);
+    await deadLetterReceiver.close();
+    
+    // Close the fresh client
+    await freshClient.close();
+    
+    // Map active messages
+    const mappedActiveMessages = activeMessages.map(msg => ({
+      messageId: msg.messageId,
+      body: msg.body,
+      label: msg.label,
+      correlationId: msg.correlationId,
+      sessionId: msg.sessionId,
+      partitionKey: msg.partitionKey,
+      enqueuedTimeUtc: msg.enqueuedTimeUtc,
+      expiresAtUtc: msg.expiresAtUtc,
+      deliveryCount: msg.deliveryCount,
+      applicationProperties: msg.applicationProperties,
+      messageType: 'active'
+    }));
+    
+    // Map dead letter messages
+    const mappedDeadLetterMessages = deadLetterMessages.map(msg => ({
+      messageId: msg.messageId,
+      body: msg.body,
+      label: msg.label,
+      correlationId: msg.correlationId,
+      sessionId: msg.sessionId,
+      partitionKey: msg.partitionKey,
+      enqueuedTimeUtc: msg.enqueuedTimeUtc,
+      expiresAtUtc: msg.expiresAtUtc,
+      deliveryCount: msg.deliveryCount,
+      applicationProperties: msg.applicationProperties,
+      deadLetterSource: msg.deadLetterSource,
+      deadLetterReason: msg.deadLetterReason,
+      deadLetterErrorDescription: msg.deadLetterErrorDescription,
+      messageType: 'deadletter'
+    }));
+    
+    // Return combined result
+    const result = {
+      activeMessages: mappedActiveMessages,
+      deadLetterMessages: mappedDeadLetterMessages,
+      allMessages: [...mappedActiveMessages, ...mappedDeadLetterMessages],
+      totalCount: mappedActiveMessages.length + mappedDeadLetterMessages.length
+    };
+    
+    return { success: true, data: result };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -375,6 +430,50 @@ ipcMain.handle('azure-sb-send-topic-message', async (event, { connectionId, topi
     await sender.close();
     
     return { success: true, data: { messageId: message.messageId } };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('azure-sb-receive-message', async (event, { connectionId, queueName }) => {
+  const connection = connections.get(connectionId);
+  if (!connection) {
+    return { success: false, error: 'Connection not found' };
+  }
+
+  try {
+    // Create a fresh ServiceBusClient for this operation to avoid state pollution
+    const { ServiceBusClient } = require('@azure/service-bus');
+    const freshClient = new ServiceBusClient(connection.connectionString);
+    
+    const receiver = freshClient.createReceiver(queueName);
+    const messages = await receiver.receiveMessages(1, { maxWaitTimeInMs: 5000 });
+    
+    if (messages.length > 0) {
+      const message = messages[0];
+      await receiver.completeMessage(message);
+      await receiver.close();
+      await freshClient.close();
+      
+      const messageData = {
+        messageId: message.messageId,
+        body: message.body,
+        label: message.label,
+        correlationId: message.correlationId,
+        sessionId: message.sessionId,
+        partitionKey: message.partitionKey,
+        enqueuedTimeUtc: message.enqueuedTimeUtc,
+        expiresAtUtc: message.expiresAtUtc,
+        deliveryCount: message.deliveryCount,
+        applicationProperties: message.applicationProperties,
+      };
+      
+      return { success: true, data: messageData };
+    }
+    
+    await receiver.close();
+    await freshClient.close();
+    return { success: true, data: null };
   } catch (error) {
     return { success: false, error: error.message };
   }

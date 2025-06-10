@@ -35,7 +35,8 @@ function QueueDetails() {
     setPageSize,
     getPaginatedMessages,
     getTotalPages,
-    activeConnection
+    activeConnection,
+    selectQueue
   } = useApp();
 
   const handlePeekMessage = (message) => {
@@ -56,15 +57,29 @@ function QueueDetails() {
   };
 
   const handleRefresh = async () => {
-    if (!selectedQueue) return;
+    if (!selectedQueue) {
+      console.log(`❌ No selected queue for refresh`);
+      return;
+    }
     
-    console.log(`🔄 Queue refresh button clicked - loading all queue messages`);
+    if (loading) {
+      console.log(`⚠️  Already loading, skipping refresh to prevent race condition`);
+      return;
+    }
     
-    // Set filter to 'all' and load all messages (like clicking on queue name)
-    setMessageFilter('all');
+    console.log(`🔄 Queue refresh button clicked - calling selectQueue`, {
+      queueName: selectedQueue.name,
+      loading,
+      currentMessageFilter: messageFilter
+    });
     
-    // Always load all messages when refreshing
-    await loadAllMessageTypes(selectedQueue.name);
+    try {
+      // Simply call selectQueue with current queue (same as clicking queue name)
+      await selectQueue(selectedQueue);
+      console.log(`✅ Queue refresh completed successfully`);
+    } catch (error) {
+      console.error(`❌ Queue refresh failed:`, error);
+    }
   };
 
   const handleFilterClick = async (filter) => {

@@ -42,7 +42,8 @@ function SubscriptionDetails() {
     getPaginatedMessages, // We'll create our own version
     getTotalPages, // We'll create our own version
     activeConnection,
-    state
+    state,
+    selectSubscription
   } = useApp();
 
   // Get current pagination for the active filter
@@ -97,16 +98,30 @@ function SubscriptionDetails() {
   };
 
   const handleRefresh = async () => {
-    if (!selectedSubscription) return;
+    if (!selectedSubscription) {
+      console.log(`❌ No selected subscription for refresh`);
+      return;
+    }
     
-    console.log(`🔄 Refresh button clicked - loading all subscription messages`);
+    if (loading) {
+      console.log(`⚠️  Already loading, skipping refresh to prevent race condition`);
+      return;
+    }
     
-    // Set filter to 'all' and load all messages (like clicking on subscription name)
-    setMessageFilter('all');
-    updateLocalPagination('all', { currentPage: 1 });
+    console.log(`🔄 Refresh button clicked - calling selectSubscription`, {
+      subscriptionName: selectedSubscription.name,
+      topicName: selectedSubscription.topicName,
+      loading,
+      currentMessageFilter: messageFilter
+    });
     
-    // Always load all messages when refreshing
-    await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
+    try {
+      // Simply call selectSubscription with current subscription (same as clicking subscription name)
+      await selectSubscription(selectedSubscription);
+      console.log(`✅ Refresh completed successfully`);
+    } catch (error) {
+      console.error(`❌ Refresh failed:`, error);
+    }
   };
 
   const handleFilterClick = async (filter) => {
@@ -184,28 +199,62 @@ function SubscriptionDetails() {
       subscriptionDeadLetterMessages: subscriptionDeadLetterMessages.length,
       subscriptionAllMessages: subscriptionAllMessages.length,
       currentMessages: currentMessages.length,
-      selectedSubscription: selectedSubscription?.name
+      selectedSubscription: selectedSubscription?.name,
+      loading,
+      timestamp: new Date().toISOString()
     });
+    
+    // Additional debugging if no messages found but we expect them
+    if (currentMessages.length === 0 && messageFilter === 'all') {
+      console.warn(`⚠️  No messages found for 'all' filter, checking individual arrays:`, {
+        subscriptionMessages: subscriptionMessages,
+        subscriptionDeadLetterMessages: subscriptionDeadLetterMessages,
+        subscriptionAllMessages: subscriptionAllMessages
+      });
+    }
     
     return currentMessages;
   };
 
   const getCurrentMessageCount = () => {
     const currentMessages = getCurrentMessages();
+    console.log(`📊 getCurrentMessageCount():`, {
+      filter: messageFilter,
+      count: currentMessages.length,
+      timestamp: new Date().toISOString()
+    });
     return currentMessages.length;
   };
 
   const getPaginatedCurrentMessages = () => {
+    console.log(`📄 getPaginatedCurrentMessages() START:`, {
+      filter: messageFilter,
+      loading,
+      localPagination,
+      timestamp: new Date().toISOString()
+    });
+    
     const currentMessages = getCurrentMessages();
     const paginatedMessages = getLocalPaginatedMessages(currentMessages);
     
-    console.log(`📄 getPaginatedCurrentMessages() called:`, {
+    console.log(`📄 getPaginatedCurrentMessages() RESULT:`, {
       totalMessages: currentMessages.length,
       currentPage: getCurrentPagination().currentPage,
       pageSize: getCurrentPagination().pageSize,
       paginatedCount: paginatedMessages.length,
-      pagination: getCurrentPagination()
+      pagination: getCurrentPagination(),
+      timestamp: new Date().toISOString()
     });
+    
+    // Additional warning if pagination seems wrong
+    if (currentMessages.length > 0 && paginatedMessages.length === 0) {
+      console.warn(`⚠️  Pagination issue detected:`, {
+        totalMessages: currentMessages.length,
+        pagination: getCurrentPagination(),
+        expectedStartIndex: (getCurrentPagination().currentPage - 1) * getCurrentPagination().pageSize,
+        localPagination
+      });
+    }
     
     return paginatedMessages;
   };
@@ -218,6 +267,45 @@ function SubscriptionDetails() {
     subscriptionAllMessages: subscriptionAllMessages.length,
     pagination: getCurrentPagination()
   });
+
+  // Track state changes with useEffect for debugging
+  useEffect(() => {
+    console.log(`🔄 subscriptionMessages changed:`, {
+      length: subscriptionMessages.length,
+      first: subscriptionMessages[0]?.messageId || 'none',
+      timestamp: new Date().toISOString()
+    });
+  }, [subscriptionMessages]);
+
+  useEffect(() => {
+    console.log(`🔄 subscriptionDeadLetterMessages changed:`, {
+      length: subscriptionDeadLetterMessages.length,
+      first: subscriptionDeadLetterMessages[0]?.messageId || 'none',
+      timestamp: new Date().toISOString()
+    });
+  }, [subscriptionDeadLetterMessages]);
+
+  useEffect(() => {
+    console.log(`🔄 subscriptionAllMessages changed:`, {
+      length: subscriptionAllMessages.length,
+      first: subscriptionAllMessages[0]?.messageId || 'none',
+      timestamp: new Date().toISOString()
+    });
+  }, [subscriptionAllMessages]);
+
+  useEffect(() => {
+    console.log(`🔄 messageFilter changed:`, {
+      filter: messageFilter,
+      timestamp: new Date().toISOString()
+    });
+  }, [messageFilter]);
+
+  useEffect(() => {
+    console.log(`🔄 loading state changed:`, {
+      loading,
+      timestamp: new Date().toISOString()
+    });
+  }, [loading]);
 
   if (!selectedSubscription) return null;
 

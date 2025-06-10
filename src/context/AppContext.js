@@ -282,12 +282,30 @@ function appReducer(state, action) {
     
     // Subscription message actions
     case 'SET_SUBSCRIPTION_MESSAGES':
+      console.log(`🔄 REDUCER: SET_SUBSCRIPTION_MESSAGES`, {
+        newLength: action.payload.length,
+        currentLength: state.subscriptionMessages.length,
+        first: action.payload[0]?.messageId || 'none',
+        timestamp: new Date().toISOString()
+      });
       return { ...state, subscriptionMessages: action.payload };
     
     case 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES':
+      console.log(`🔄 REDUCER: SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES`, {
+        newLength: action.payload.length,
+        currentLength: state.subscriptionDeadLetterMessages.length,
+        first: action.payload[0]?.messageId || 'none',
+        timestamp: new Date().toISOString()
+      });
       return { ...state, subscriptionDeadLetterMessages: action.payload };
     
     case 'SET_SUBSCRIPTION_ALL_MESSAGES':
+      console.log(`🔄 REDUCER: SET_SUBSCRIPTION_ALL_MESSAGES`, {
+        newLength: action.payload.length,
+        currentLength: state.subscriptionAllMessages.length,
+        first: action.payload[0]?.messageId || 'none',
+        timestamp: new Date().toISOString()
+      });
       return { ...state, subscriptionAllMessages: action.payload };
     
     // Pagination actions
@@ -770,12 +788,31 @@ export function AppProvider({ children }) {
 
   const selectSubscription = async (subscription) => {
     console.log(`🎯 === SUBSCRIPTION SELECTION STARTED ===`);
-    console.log(`📋 Subscription:`, subscription);
+    console.log(`📋 Subscription object:`, JSON.stringify(subscription, null, 2));
     console.log(`📊 Current state before selection:`, {
       subscriptionMessages: state.subscriptionMessages.length,
+      subscriptionDeadLetterMessages: state.subscriptionDeadLetterMessages.length,
+      subscriptionAllMessages: state.subscriptionAllMessages.length,
       messageFilter: state.messageFilter,
-      loading: state.loading
+      loading: state.loading,
+      hasActiveConnection: !!state.activeConnection,
+      activeConnectionId: state.activeConnection?.id
     });
+    
+    // Early validation
+    if (!subscription || !subscription.topicName || !subscription.name) {
+      console.error(`❌ Invalid subscription object:`, subscription);
+      return;
+    }
+    
+    if (!state.activeConnection) {
+      console.error(`❌ No active connection available`);
+      return;
+    }
+    
+    if (state.loading) {
+      console.warn(`⚠️  Already loading, this might cause race condition`);
+    }
     
     console.log(`🔄 Dispatching SET_SELECTED_SUBSCRIPTION...`);
     dispatch({ type: 'SET_SELECTED_SUBSCRIPTION', payload: subscription });
@@ -783,9 +820,15 @@ export function AppProvider({ children }) {
     console.log(`📱 Starting to load all subscription messages...`);
     try {
       await loadAllSubscriptionMessages(subscription.topicName, subscription.name);
-      console.log(`✅ === SUBSCRIPTION SELECTION COMPLETED ===`);
+      console.log(`✅ === SUBSCRIPTION SELECTION COMPLETED SUCCESSFULLY ===`);
     } catch (error) {
       console.error(`❌ Error during subscription selection:`, error);
+      console.error(`❌ Error details:`, {
+        message: error.message,
+        stack: error.stack,
+        subscription,
+        connectionId: state.activeConnection?.id
+      });
     }
   };
 
@@ -915,55 +958,82 @@ export function AppProvider({ children }) {
   };
 
   const loadAllSubscriptionMessages = async (topicName, subscriptionName) => {
-    if (!state.activeConnection) return;
+    if (!state.activeConnection) {
+      console.error(`❌ No active connection for loadAllSubscriptionMessages`);
+      return;
+    }
     
     try {
+      console.log(`🔄 === LOADING ALL SUBSCRIPTION MESSAGES STARTED ===`);
+      console.log(`📋 Parameters:`, { topicName, subscriptionName, connectionId: state.activeConnection.id });
+      
       dispatch({ type: 'SET_LOADING', payload: true });
       
       // Clear existing subscription messages first
-      console.log(`🔄 Loading ALL subscription messages: ${topicName}/${subscriptionName}`);
+      console.log(`🧹 Clearing existing subscription message arrays...`);
       dispatch({ type: 'SET_SUBSCRIPTION_MESSAGES', payload: [] });
       dispatch({ type: 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES', payload: [] });
       dispatch({ type: 'SET_SUBSCRIPTION_ALL_MESSAGES', payload: [] });
+      console.log(`✅ Arrays cleared`);
       
-      // Fetch all messages (limit to 10,000 each for memory management)
+      // Fetch all messages using the new single API call
       const maxMessages = 10000;
-      console.log(`📥 Fetching up to ${maxMessages} messages of each type from Azure Service Bus...`);
+      console.log(`📥 Fetching up to ${maxMessages} messages using getAllSubscriptionMessages API...`);
       
-      // Load both active and dead letter messages
-      const [activeMessages, deadLetterMessages] = await Promise.all([
-        azureServiceBusService.peekSubscriptionMessages(state.activeConnection.id, topicName, subscriptionName, maxMessages),
-        azureServiceBusService.getSubscriptionDeadLetterMessages(state.activeConnection.id, topicName, subscriptionName, maxMessages)
-      ]);
+      const result = await azureServiceBusService.getAllSubscriptionMessages(
+        state.activeConnection.id, 
+        topicName, 
+        subscriptionName, 
+        maxMessages
+      );
       
-      console.log(`✅ Received ${activeMessages.length} active + ${deadLetterMessages.length} dead letter subscription messages`);
+      console.log(`📨 getAllSubscriptionMessages API Results:`, {
+        activeCount: result.activeMessages.length,
+        deadLetterCount: result.deadLetterMessages.length,
+        totalCount: result.totalCount,
+        allMessagesCount: result.allMessages.length
+      });
       
-      dispatch({ type: 'SET_SUBSCRIPTION_MESSAGES', payload: activeMessages });
-      dispatch({ type: 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES', payload: deadLetterMessages });
+      console.log(`📤 Dispatching SET_SUBSCRIPTION_MESSAGES with ${result.activeMessages.length} messages...`);
+      dispatch({ type: 'SET_SUBSCRIPTION_MESSAGES', payload: result.activeMessages });
       
-      // Combine messages with type indicator
-      const combinedMessages = [
-        ...activeMessages.map(msg => ({ ...msg, messageType: 'active' })),
-        ...deadLetterMessages.map(msg => ({ ...msg, messageType: 'deadletter' }))
-      ];
+      console.log(`📤 Dispatching SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES with ${result.deadLetterMessages.length} messages...`);
+      dispatch({ type: 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES', payload: result.deadLetterMessages });
       
-      dispatch({ type: 'SET_SUBSCRIPTION_ALL_MESSAGES', payload: combinedMessages });
+      console.log(`📤 Dispatching SET_SUBSCRIPTION_ALL_MESSAGES with ${result.allMessages.length} combined messages...`);
+      dispatch({ type: 'SET_SUBSCRIPTION_ALL_MESSAGES', payload: result.allMessages });
       
       // Set up pagination for combined view
+      console.log(`📄 Setting up pagination for ${result.totalCount} total items...`);
       dispatch({ type: 'SET_PAGINATION', payload: { 
         currentPage: 1, 
-        totalItems: combinedMessages.length 
+        totalItems: result.totalCount 
       }});
       
-      const totalMessages = activeMessages.length + deadLetterMessages.length;
-      if (totalMessages >= maxMessages * 2) {
+      if (result.totalCount >= maxMessages * 2) {
         console.warn(`⚠️  Reached maximum limit of ${maxMessages * 2} total subscription messages. There may be more messages available.`);
       }
       
+      console.log(`✅ === LOADING ALL SUBSCRIPTION MESSAGES COMPLETED ===`);
+      console.log(`📊 Final Results:`, {
+        activeCount: result.activeMessages.length,
+        deadLetterCount: result.deadLetterMessages.length,
+        combinedCount: result.allMessages.length,
+        totalCount: result.totalCount
+      });
+      
     } catch (error) {
       console.error('❌ Error loading all subscription messages:', error);
+      console.error(`❌ Error context:`, {
+        topicName,
+        subscriptionName,
+        connectionId: state.activeConnection?.id,
+        errorMessage: error.message,
+        errorStack: error.stack
+      });
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
+      console.log(`🔄 Setting loading to false...`);
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
