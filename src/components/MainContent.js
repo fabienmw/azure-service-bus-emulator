@@ -20,17 +20,29 @@ function MainContent() {
 
   // Show queue details if queue is selected
   if (selectedQueue) {
-    return <QueueDetails />;
+    return (
+      <div className="h-full">
+        <QueueDetails />
+      </div>
+    );
   }
 
   // Show subscription details if subscription is selected
   if (selectedSubscription) {
-    return <SubscriptionDetails />;
+    return (
+      <div className="h-full">
+        <SubscriptionDetails />
+      </div>
+    );
   }
 
   // Show topic details if topic is selected
   if (selectedTopic) {
-    return <TopicDetails />;
+    return (
+      <div className="h-full">
+        <TopicDetails />
+      </div>
+    );
   }
 
   // Default state - show connection info

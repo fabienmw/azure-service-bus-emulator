@@ -106,23 +106,30 @@ function SubscriptionDetails() {
     setMessageCount(newCount);
     setShowLoadAllOption(false);
     
-    // Reload messages with new count
-    await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name, newCount);
+    // Reload messages with new count based on current filter
+    if (messageFilter === 'all') {
+      await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name, newCount);
+    } else if (messageFilter === 'deadletter') {
+      await loadSubscriptionDeadLetterMessages(selectedSubscription.topicName, selectedSubscription.name, newCount);
+    } else {
+      await loadSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name, newCount);
+    }
   };
 
   if (!selectedSubscription) return null;
 
   return (
-    <div className="flex-1 flex flex-col bg-secondary-50">
+    <div className="h-full flex flex-col bg-secondary-50">
       {/* Header */}
-      <div className="bg-white border-b border-secondary-200 p-6">
+      <div className="bg-white border-b border-secondary-200 p-6 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-secondary-800 mb-1">
+            <h1 className="text-2xl font-bold text-secondary-800 mb-1 flex items-center">
+              <Bell className="h-6 w-6 mr-2 text-primary-600" />
               {selectedSubscription.name}
             </h1>
             <p className="text-secondary-600">
-              Subscription for topic: {selectedSubscription.topicName}
+              Subscription on Topic: <span className="font-medium">{selectedSubscription.topicName}</span>
             </p>
           </div>
           <div className="flex items-center space-x-2">
@@ -130,7 +137,7 @@ function SubscriptionDetails() {
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setShowLoadAllOption(!showLoadAllOption)}
-                className="flex items-center space-x-2 px-3 py-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 rounded-lg transition-colors text-sm"
+                className="flex items-center space-x-2 px-4 py-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 rounded-lg transition-colors"
               >
                 <span>{messageCount === 'all' ? 'All' : messageCount} messages</span>
                 <ChevronDown className={`h-4 w-4 transition-transform ${showLoadAllOption ? 'rotate-180' : ''}`} />
@@ -235,7 +242,7 @@ function SubscriptionDetails() {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white border-b border-secondary-200">
+      <div className="bg-white border-b border-secondary-200 flex-shrink-0">
         <div className="flex space-x-8 px-6">
           <button
             onClick={() => setActiveTab('messages')}
@@ -270,26 +277,28 @@ function SubscriptionDetails() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0">
         {activeTab === 'messages' && (
-          <MessageList 
-            messages={getCurrentMessages()}
-            onPeekMessage={handlePeekMessage}
-            loading={loading}
-            emptyMessage={
-              messageFilter === 'deadletter' 
-                ? "No dead letter messages in subscription" 
-                : messageFilter === 'all' 
-                  ? "No messages in subscription" 
-                  : "No active messages in subscription"
-            }
-            isDeadLetter={messageFilter === 'deadletter'}
-            showMessageType={messageFilter === 'all'}
-          />
+          <div className="flex-1 min-h-0">
+            <MessageList 
+              messages={getCurrentMessages()}
+              onPeekMessage={handlePeekMessage}
+              loading={loading}
+              emptyMessage={
+                messageFilter === 'deadletter' 
+                  ? "No dead letter messages in subscription" 
+                  : messageFilter === 'all' 
+                    ? "No messages in subscription" 
+                    : "No active messages in subscription"
+              }
+              isDeadLetter={messageFilter === 'deadletter'}
+              showMessageType={messageFilter === 'all'}
+            />
+          </div>
         )}
 
         {activeTab === 'settings' && (
-          <div className="p-6">
+          <div className="flex-1 overflow-y-auto p-6">
             <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
               <h3 className="text-lg font-semibold text-secondary-800 mb-4 flex items-center">
                 <Settings className="h-5 w-5 mr-2" />

@@ -131,9 +131,9 @@ function QueueDetails() {
   if (!selectedQueue) return null;
 
   return (
-    <div className="flex-1 flex flex-col bg-secondary-50">
+    <div className="h-full flex flex-col bg-secondary-50">
       {/* Header */}
-      <div className="bg-white border-b border-secondary-200 p-6">
+      <div className="bg-white border-b border-secondary-200 p-6 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold text-secondary-800 mb-1">
@@ -230,7 +230,7 @@ function QueueDetails() {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white border-b border-secondary-200">
+      <div className="bg-white border-b border-secondary-200 flex-shrink-0">
         <div className="flex justify-between items-center px-6">
           <div className="flex space-x-8">
             <button
@@ -318,34 +318,38 @@ function QueueDetails() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0">
         {activeTab === 'messages' && (
-          <MessageList 
-            messages={getCurrentMessages()}
-            onPeekMessage={handlePeekMessage}
-            loading={loading}
-            emptyMessage={
-              messageFilter === 'all' ? "No messages found" :
-              messageFilter === 'deadletter' ? "No dead letter messages found" :
-              "No active messages found"
-            }
-            isDeadLetter={messageFilter === 'deadletter'}
-            showMessageType={messageFilter === 'all'}
-          />
+          <div className="flex-1 min-h-0">
+            <MessageList 
+              messages={getCurrentMessages()}
+              onPeekMessage={handlePeekMessage}
+              loading={loading}
+              emptyMessage={
+                messageFilter === 'all' ? "No messages found" :
+                messageFilter === 'deadletter' ? "No dead letter messages found" :
+                "No active messages found"
+              }
+              isDeadLetter={messageFilter === 'deadletter'}
+              showMessageType={messageFilter === 'all'}
+            />
+          </div>
         )}
         
         {activeTab === 'deadletter' && (
-          <MessageList 
-            messages={deadLetterMessages}
-            onPeekMessage={handlePeekMessage}
-            loading={loading}
-            emptyMessage="No messages in dead letter queue"
-            isDeadLetter={true}
-          />
+          <div className="flex-1 min-h-0">
+            <MessageList 
+              messages={deadLetterMessages}
+              onPeekMessage={handlePeekMessage}
+              loading={loading}
+              emptyMessage="No messages in dead letter queue"
+              isDeadLetter={true}
+            />
+          </div>
         )}
 
         {activeTab === 'settings' && (
-          <div className="p-6">
+          <div className="flex-1 overflow-y-auto p-6">
             <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
               <h3 className="text-lg font-semibold text-secondary-800 mb-4">Queue Properties</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

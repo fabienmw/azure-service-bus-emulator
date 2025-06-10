@@ -716,6 +716,10 @@ export function AppProvider({ children }) {
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      
+      // Clear existing messages first to avoid stale state
+      dispatch({ type: 'SET_MESSAGES', payload: [] });
+      
       const actualCount = count || state.messageCount;
       const maxMessages = actualCount === 'all' ? 1000 : actualCount;
       const messages = await azureServiceBusService.peekMessages(
@@ -736,16 +740,23 @@ export function AppProvider({ children }) {
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      
+      // Clear existing messages first to avoid stale state
+      dispatch({ type: 'SET_MESSAGES', payload: [] });
+      
       const actualCount = count || state.messageCount;
       const maxMessages = actualCount === 'all' ? 1000 : actualCount;
+      
       const messages = await azureServiceBusService.peekSubscriptionMessages(
         state.activeConnection.id, 
         topicName, 
         subscriptionName, 
         maxMessages
       );
+      
       dispatch({ type: 'SET_MESSAGES', payload: messages });
     } catch (error) {
+      console.error('loadSubscriptionMessages error:', error);
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -757,6 +768,10 @@ export function AppProvider({ children }) {
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      
+      // Clear existing dead letter messages first to avoid stale state
+      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: [] });
+      
       const actualCount = count || state.messageCount;
       const maxMessages = actualCount === 'all' ? 1000 : actualCount;
       const messages = await azureServiceBusService.getSubscriptionDeadLetterMessages(
@@ -778,6 +793,12 @@ export function AppProvider({ children }) {
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      
+      // Clear existing messages first to avoid stale state
+      dispatch({ type: 'SET_MESSAGES', payload: [] });
+      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: [] });
+      dispatch({ type: 'SET_ALL_MESSAGES', payload: [] });
+      
       const actualCount = count || state.messageCount;
       const maxMessages = actualCount === 'all' ? 1000 : actualCount;
       
@@ -809,6 +830,10 @@ export function AppProvider({ children }) {
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      
+      // Clear existing dead letter messages first to avoid stale state
+      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: [] });
+      
       const actualCount = count || state.messageCount;
       const maxMessages = actualCount === 'all' ? 1000 : actualCount;
       const messages = await azureServiceBusService.getDeadLetterMessages(
@@ -824,13 +849,17 @@ export function AppProvider({ children }) {
     }
   };
 
-
-
   const loadAllMessageTypes = async (queueName, count = null) => {
     if (!state.activeConnection) return;
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      
+      // Clear existing messages first to avoid stale state
+      dispatch({ type: 'SET_MESSAGES', payload: [] });
+      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: [] });
+      dispatch({ type: 'SET_ALL_MESSAGES', payload: [] });
+      
       const actualCount = count || state.messageCount;
       const maxMessages = actualCount === 'all' ? 1000 : actualCount;
       
@@ -917,8 +946,6 @@ export function AppProvider({ children }) {
     }
   };
 
-
-
   const receiveMessage = async (queueName) => {
     if (!state.activeConnection) return;
     
@@ -943,8 +970,6 @@ export function AppProvider({ children }) {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
-
-
 
   const setMessagePreview = (message) => {
     dispatch({ type: 'SET_MESSAGE_PREVIEW', payload: message });

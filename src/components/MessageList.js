@@ -1,5 +1,6 @@
 import React from 'react';
 import { Eye, Calendar, Hash, Tag, AlertTriangle, Inbox } from 'lucide-react';
+import './MessageList.css';
 
 function MessageList({ 
   messages, 
@@ -43,7 +44,7 @@ function MessageList({
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="h-full flex flex-col bg-white">
       {(isDeadLetter || showMessageType) && messages.length > 0 && (
         <div className={`flex-shrink-0 border-b px-4 py-2 ${
           showMessageType 
@@ -76,7 +77,7 @@ function MessageList({
           </div>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 message-list-container" style={{ height: 0 }}>
         <table className="w-full">
           <thead className="bg-secondary-50 border-b border-secondary-200 sticky top-0 z-10">
             <tr>
@@ -166,7 +167,6 @@ function MessageList({
             ))}
           </tbody>
         </table>
-
       </div>
     </div>
   );

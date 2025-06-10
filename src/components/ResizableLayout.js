@@ -85,7 +85,7 @@ function ResizableLayout({
       </div>
 
       {/* Right Panel */}
-      <div className="flex-1 h-full overflow-hidden">
+      <div className="flex-1 h-full">
         {rightPanel}
       </div>
     </div>
