@@ -55,16 +55,16 @@ function QueueDetails() {
     }
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     if (!selectedQueue) return;
     
-    if (messageFilter === 'all') {
-      loadAllMessageTypes(selectedQueue.name);
-    } else if (messageFilter === 'deadletter') {
-      loadDeadLetterMessages(selectedQueue.name);
-    } else {
-      loadQueueMessages(selectedQueue.name);
-    }
+    console.log(`🔄 Queue refresh button clicked - loading all queue messages`);
+    
+    // Set filter to 'all' and load all messages (like clicking on queue name)
+    setMessageFilter('all');
+    
+    // Always load all messages when refreshing
+    await loadAllMessageTypes(selectedQueue.name);
   };
 
   const handleFilterClick = async (filter) => {

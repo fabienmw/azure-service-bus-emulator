@@ -99,13 +99,14 @@ function SubscriptionDetails() {
   const handleRefresh = async () => {
     if (!selectedSubscription) return;
     
-    if (messageFilter === 'all') {
-      await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
-    } else if (messageFilter === 'deadletter') {
-      await loadSubscriptionDeadLetterMessages(selectedSubscription.topicName, selectedSubscription.name);
-    } else {
-      await loadSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
-    }
+    console.log(`🔄 Refresh button clicked - loading all subscription messages`);
+    
+    // Set filter to 'all' and load all messages (like clicking on subscription name)
+    setMessageFilter('all');
+    updateLocalPagination('all', { currentPage: 1 });
+    
+    // Always load all messages when refreshing
+    await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
   };
 
   const handleFilterClick = async (filter) => {

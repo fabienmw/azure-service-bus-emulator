@@ -162,7 +162,7 @@ function appReducer(state, action) {
         subscriptionMessages: [],
         subscriptionDeadLetterMessages: [],
         subscriptionAllMessages: [],
-        messageFilter: 'active',
+        messageFilter: 'all',
       };
     
     case 'SET_SELECTED_TOPIC':
@@ -186,7 +186,7 @@ function appReducer(state, action) {
         subscriptionMessages: [],
         subscriptionDeadLetterMessages: [],
         subscriptionAllMessages: [],
-        messageFilter: 'active',
+        messageFilter: 'all',
       };
     
     case 'SET_MESSAGES':
@@ -760,8 +760,8 @@ export function AppProvider({ children }) {
 
   const selectQueue = async (queue) => {
     dispatch({ type: 'SET_SELECTED_QUEUE', payload: queue });
-    // Load queue messages when selecting
-    await loadQueueMessages(queue.name);
+    // Load all message types when selecting queue (for consistency with subscriptions)
+    await loadAllMessageTypes(queue.name);
   };
 
   const selectTopic = (topic) => {
@@ -780,9 +780,9 @@ export function AppProvider({ children }) {
     console.log(`🔄 Dispatching SET_SELECTED_SUBSCRIPTION...`);
     dispatch({ type: 'SET_SELECTED_SUBSCRIPTION', payload: subscription });
     
-    console.log(`📱 Starting to load subscription messages...`);
+    console.log(`📱 Starting to load all subscription messages...`);
     try {
-      await loadSubscriptionMessages(subscription.topicName, subscription.name);
+      await loadAllSubscriptionMessages(subscription.topicName, subscription.name);
       console.log(`✅ === SUBSCRIPTION SELECTION COMPLETED ===`);
     } catch (error) {
       console.error(`❌ Error during subscription selection:`, error);
