@@ -10,6 +10,8 @@ const initialState = {
   topics: [],
   subscriptions: [], // Keeping for backward compatibility
   subscriptionsByTopic: {}, // { topicName: [subscriptions] }
+  queueMessageCounts: {}, // { queueName: messageCount }
+  subscriptionMessageCounts: {}, // { topicName_subscriptionName: messageCount }
   selectedQueue: null,
   selectedTopic: null,
   selectedSubscription: null,
@@ -69,6 +71,8 @@ function appReducer(state, action) {
         queues: [],
         topics: [],
         subscriptions: [],
+        queueMessageCounts: {},
+        subscriptionMessageCounts: {},
         selectedQueue: null,
         selectedTopic: null,
         selectedSubscription: null,
@@ -91,6 +95,24 @@ function appReducer(state, action) {
         subscriptionsByTopic: {
           ...state.subscriptionsByTopic,
           [action.payload.topicName]: action.payload.subscriptions
+        }
+      };
+    
+    case 'SET_QUEUE_MESSAGE_COUNTS':
+      return { 
+        ...state, 
+        queueMessageCounts: {
+          ...state.queueMessageCounts,
+          ...action.payload
+        }
+      };
+    
+    case 'SET_SUBSCRIPTION_MESSAGE_COUNTS':
+      return { 
+        ...state, 
+        subscriptionMessageCounts: {
+          ...state.subscriptionMessageCounts,
+          ...action.payload
         }
       };
     
@@ -338,6 +360,67 @@ export function AppProvider({ children }) {
     }
   };
 
+  const loadQueueMessageCounts = async () => {
+    if (!state.activeConnection || state.queues.length === 0) return;
+    
+    try {
+      // Use the message counts that should already be available from queue metadata
+      const queueMessageCounts = state.queues.reduce((acc, queue) => {
+        acc[queue.name] = queue.messageCount || 0;
+        return acc;
+      }, {});
+      
+      dispatch({ type: 'SET_QUEUE_MESSAGE_COUNTS', payload: queueMessageCounts });
+    } catch (error) {
+      console.error('Error loading queue message counts:', error);
+    }
+  };
+
+  const loadSubscriptionMessageCounts = async (topicName) => {
+    if (!state.activeConnection || !state.subscriptionsByTopic[topicName]) return;
+    
+    try {
+      const subscriptions = state.subscriptionsByTopic[topicName];
+      
+      // Use the message counts that should already be available from subscription metadata
+      const subscriptionMessageCounts = subscriptions.reduce((acc, subscription) => {
+        const key = `${topicName}_${subscription.name}`;
+        acc[key] = subscription.messageCount || 0;
+        return acc;
+      }, {});
+      
+      dispatch({ type: 'SET_SUBSCRIPTION_MESSAGE_COUNTS', payload: subscriptionMessageCounts });
+    } catch (error) {
+      console.error(`Error loading subscription message counts for topic ${topicName}:`, error);
+    }
+  };
+
+  const loadAllTopicsSubscriptions = async () => {
+    if (!state.activeConnection || state.topics.length === 0) return;
+    
+    try {
+      // Load subscriptions for all topics in parallel
+      const subscriptionPromises = state.topics.map(async (topic) => {
+        try {
+          const subscriptions = await azureServiceBusService.getSubscriptions(state.activeConnection.id, topic.name);
+          return { topicName: topic.name, subscriptions };
+        } catch (error) {
+          console.error(`Error loading subscriptions for topic ${topic.name}:`, error);
+          return { topicName: topic.name, subscriptions: [] };
+        }
+      });
+      
+      const subscriptionResults = await Promise.all(subscriptionPromises);
+      
+      // Update subscriptionsByTopic for each topic
+      subscriptionResults.forEach(result => {
+        dispatch({ type: 'SET_SUBSCRIPTIONS_BY_TOPIC', payload: result });
+      });
+    } catch (error) {
+      console.error('Error loading subscriptions for all topics:', error);
+    }
+  };
+
   const selectQueue = async (queue) => {
     dispatch({ type: 'SET_SELECTED_QUEUE', payload: queue });
     await loadQueueMessages(queue.name);
@@ -514,19 +597,31 @@ export function AppProvider({ children }) {
 
   const toggleQueuesExpanded = () => {
     dispatch({ type: 'TOGGLE_QUEUES_EXPANDED' });
-    // Data should already be loaded when connection was established
-    // No need to reload unless queues array is empty
-    if (!state.expandedStates.queues && state.queues.length === 0) {
-      loadQueues();
+    // When expanding queues, immediately load message counts for all queues
+    if (!state.expandedStates.queues) {
+      // Data should already be loaded when connection was established
+      // No need to reload unless queues array is empty
+      if (state.queues.length === 0) {
+        loadQueues();
+      } else {
+        // Load message counts for all queues
+        loadQueueMessageCounts();
+      }
     }
   };
 
   const toggleTopicsExpanded = () => {
     dispatch({ type: 'TOGGLE_TOPICS_EXPANDED' });
-    // Data should already be loaded when connection was established
-    // No need to reload unless topics array is empty
-    if (!state.expandedStates.topics && state.topics.length === 0) {
-      loadTopics();
+    // When expanding topics, immediately load subscriptions for all topics
+    if (!state.expandedStates.topics) {
+      // Data should already be loaded when connection was established
+      // No need to reload unless topics array is empty
+      if (state.topics.length === 0) {
+        loadTopics();
+      } else {
+        // Load subscriptions for all topics
+        loadAllTopicsSubscriptions();
+      }
     }
   };
 
@@ -536,8 +631,15 @@ export function AppProvider({ children }) {
 
   const toggleTopicSubscriptionsExpanded = (topicName) => {
     dispatch({ type: 'TOGGLE_TOPIC_SUBSCRIPTIONS_EXPANDED', payload: topicName });
+    // When expanding subscriptions for a topic, immediately load message counts
     if (!state.expandedStates.topicSubscriptions[topicName]) {
-      loadSubscriptions(topicName);
+      // Load subscriptions if not already loaded
+      if (!state.subscriptionsByTopic[topicName]) {
+        loadSubscriptions(topicName);
+      } else {
+        // Load message counts for all subscriptions in this topic
+        loadSubscriptionMessageCounts(topicName);
+      }
     }
   };
 
@@ -587,6 +689,9 @@ export function AppProvider({ children }) {
     loadQueues,
     loadTopics,
     loadSubscriptions,
+    loadQueueMessageCounts,
+    loadSubscriptionMessageCounts,
+    loadAllTopicsSubscriptions,
     selectQueue,
     selectTopic,
     selectSubscription,

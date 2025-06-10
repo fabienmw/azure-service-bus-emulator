@@ -23,6 +23,8 @@ function Sidebar({ onNewConnection }) {
     queues,
     topics,
     subscriptionsByTopic,
+    queueMessageCounts,
+    subscriptionMessageCounts,
     selectedQueue,
     selectedTopic,
     selectedSubscription,
@@ -41,7 +43,7 @@ function Sidebar({ onNewConnection }) {
   } = useApp();
 
   return (
-    <div className="w-80 bg-white border-r border-secondary-200 flex flex-col shadow-lg">
+    <div className="h-full bg-white border-r border-secondary-200 flex flex-col shadow-lg">
       {/* Header */}
       <div className="p-4 border-b border-secondary-200 bg-gradient-to-r from-primary-500 to-primary-600">
         <h1 className="text-xl font-bold text-white mb-1">Azure Service Bus</h1>
@@ -49,8 +51,8 @@ function Sidebar({ onNewConnection }) {
       </div>
 
       {/* Tree Structure */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin">
-        <div className="p-2">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin">
+        <div className="p-2 min-w-0"> {/* Prevents text overflow issues */}
           {/* Connections Section */}
           <div className="space-y-1">
             <button
@@ -181,7 +183,7 @@ function Sidebar({ onNewConnection }) {
                                       <span className="text-sm font-medium truncate">{queue.name}</span>
                                     </div>
                                     <span className="text-xs bg-primary-200 text-primary-700 px-2 py-1 rounded-full">
-                                      {queue.messageCount || 0}
+                                      {queueMessageCounts[queue.name] !== undefined ? queueMessageCounts[queue.name] : (queue.messageCount || 0)}
                                     </span>
                                   </div>
                                 ))}
@@ -289,7 +291,9 @@ function Sidebar({ onNewConnection }) {
                                                   </span>
                                                 </div>
                                                 <span className="text-xs bg-success-200 text-success-700 px-2 py-1 rounded-full">
-                                                  {subscription.messageCount || 0}
+                                                  {subscriptionMessageCounts[`${topic.name}_${subscription.name}`] !== undefined 
+                                                    ? subscriptionMessageCounts[`${topic.name}_${subscription.name}`] 
+                                                    : (subscription.messageCount || 0)}
                                                 </span>
                                               </div>
                                             ))}
