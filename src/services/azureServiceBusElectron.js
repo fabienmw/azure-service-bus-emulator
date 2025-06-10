@@ -310,6 +310,60 @@ class AzureServiceBusElectronService {
     }
   }
 
+  async sendMessage(connectionId, queueName, messageBody, label = '', applicationProperties = {}) {
+    if (!this.isElectron) {
+      // Mock sending message
+      return {
+        messageId: 'sent-' + this.generateId(),
+        success: true
+      };
+    }
+
+    try {
+      const result = await ipcRenderer.invoke('azure-sb-send-message', {
+        connectionId,
+        queueName,
+        messageBody,
+        label,
+        applicationProperties
+      });
+      if (result.success) {
+        return result.data;
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      throw new Error(`Failed to send message: ${error.message}`);
+    }
+  }
+
+  async sendTopicMessage(connectionId, topicName, messageBody, label = '', applicationProperties = {}) {
+    if (!this.isElectron) {
+      // Mock sending topic message
+      return {
+        messageId: 'topic-sent-' + this.generateId(),
+        success: true
+      };
+    }
+
+    try {
+      const result = await ipcRenderer.invoke('azure-sb-send-topic-message', {
+        connectionId,
+        topicName,
+        messageBody,
+        label,
+        applicationProperties
+      });
+      if (result.success) {
+        return result.data;
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      throw new Error(`Failed to send topic message: ${error.message}`);
+    }
+  }
+
   generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
   }

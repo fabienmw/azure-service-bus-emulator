@@ -281,6 +281,48 @@ class AzureServiceBusService {
     }
   }
 
+  async sendMessage(connectionId, queueName, messageBody, label = '', applicationProperties = {}) {
+    const connection = this.getConnection(connectionId);
+    if (!connection) throw new Error('Connection not found');
+
+    try {
+      const sender = connection.client.createSender(queueName);
+      const message = {
+        body: messageBody,
+        label: label,
+        applicationProperties: applicationProperties,
+      };
+      
+      await sender.sendMessages(message);
+      await sender.close();
+      
+      return { messageId: message.messageId, success: true };
+    } catch (error) {
+      throw new Error(`Failed to send message: ${error.message}`);
+    }
+  }
+
+  async sendTopicMessage(connectionId, topicName, messageBody, label = '', applicationProperties = {}) {
+    const connection = this.getConnection(connectionId);
+    if (!connection) throw new Error('Connection not found');
+
+    try {
+      const sender = connection.client.createSender(topicName);
+      const message = {
+        body: messageBody,
+        label: label,
+        applicationProperties: applicationProperties,
+      };
+      
+      await sender.sendMessages(message);
+      await sender.close();
+      
+      return { messageId: message.messageId, success: true };
+    } catch (error) {
+      throw new Error(`Failed to send topic message: ${error.message}`);
+    }
+  }
+
   generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
   }

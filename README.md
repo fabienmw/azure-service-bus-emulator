@@ -121,6 +121,49 @@ Endpoint=sb://your-namespace.servicebus.windows.net/;SharedAccessKeyName=RootMan
 4. Select a policy with appropriate permissions (Manage, Send, Listen)
 5. Copy the "Primary Connection String"
 
+### Testing with Real Azure Service Bus
+
+The application now uses the real Azure Service Bus SDK instead of mock implementations. To test:
+
+1. **Create an Azure Service Bus namespace** (if you don't have one):
+   - Go to Azure Portal
+   - Create a new Service Bus namespace
+   - Note the connection string from Shared access policies
+
+2. **Create test queues and topics**:
+   - In the Azure Portal, go to your Service Bus namespace
+   - Create a few test queues (e.g., "test-queue", "orders-queue")
+   - Create a test topic with subscriptions (e.g., "test-topic" with "sub1", "sub2")
+
+3. **Run the application**:
+   ```bash
+   npm run electron-dev
+   ```
+
+4. **Connect to your Service Bus**:
+   - Click the "+" button to add a new connection
+   - Enter your connection name and connection string
+   - Click "Connect"
+
+5. **Verify functionality**:
+   - Browse queues and topics in the sidebar
+   - View queue/topic details and message counts
+   - Peek at messages (if any exist)
+   - Send test messages using the Azure Portal or other tools
+   - View messages in the application
+
+### Sending Test Messages
+
+You can send test messages to your queues/topics using:
+
+1. **Azure Portal** (Service Bus Explorer)
+2. **Azure CLI**:
+   ```bash
+   az servicebus message send --resource-group <rg> --namespace-name <namespace> --queue-name <queue> --body "Test message"
+   ```
+3. **PowerShell** with Azure PowerShell module
+4. **The application itself** (send functionality is built-in)
+
 ## Development
 
 ### Project Structure
