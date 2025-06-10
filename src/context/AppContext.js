@@ -14,6 +14,8 @@ const initialState = {
   selectedSubscription: null,
   messages: [],
   deadLetterMessages: [],
+  allMessages: [], // Combined active + dead letter messages
+  messageFilter: 'active', // 'active', 'deadletter', 'all'
   loading: false,
   error: null,
   sidebarSection: 'connections', // connections, queues, topics, subscriptions
@@ -80,6 +82,8 @@ function appReducer(state, action) {
         selectedSubscription: null,
         messages: [],
         deadLetterMessages: [],
+        allMessages: [],
+        messageFilter: 'active',
       };
     
     case 'SET_SELECTED_TOPIC':
@@ -106,6 +110,12 @@ function appReducer(state, action) {
     
     case 'SET_DEAD_LETTER_MESSAGES':
       return { ...state, deadLetterMessages: action.payload };
+    
+    case 'SET_ALL_MESSAGES':
+      return { ...state, allMessages: action.payload };
+    
+    case 'SET_MESSAGE_FILTER':
+      return { ...state, messageFilter: action.payload };
     
     case 'SET_SIDEBAR_SECTION':
       return { ...state, sidebarSection: action.payload };
@@ -223,10 +233,11 @@ export function AppProvider({ children }) {
 
   const selectSubscription = async (subscription) => {
     dispatch({ type: 'SET_SELECTED_SUBSCRIPTION', payload: subscription });
-    await loadSubscriptionMessages(subscription.topicName, subscription.name);
+    await loadAllSubscriptionMessages(subscription.topicName, subscription.name);
+    setMessageFilter('all');
   };
 
-  const loadQueueMessages = async (queueName, maxMessages = 10) => {
+  const loadQueueMessages = async (queueName, maxMessages = 50) => {
     if (!state.activeConnection) return;
     
     try {
@@ -244,7 +255,7 @@ export function AppProvider({ children }) {
     }
   };
 
-  const loadSubscriptionMessages = async (topicName, subscriptionName, maxMessages = 10) => {
+  const loadSubscriptionMessages = async (topicName, subscriptionName, maxMessages = 50) => {
     if (!state.activeConnection) return;
     
     try {
@@ -263,7 +274,55 @@ export function AppProvider({ children }) {
     }
   };
 
-  const loadDeadLetterMessages = async (queueName, maxMessages = 10) => {
+  const loadSubscriptionDeadLetterMessages = async (topicName, subscriptionName, maxMessages = 100) => {
+    if (!state.activeConnection) return;
+    
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      const messages = await azureServiceBusService.getSubscriptionDeadLetterMessages(
+        state.activeConnection.id, 
+        topicName, 
+        subscriptionName, 
+        maxMessages
+      );
+      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: messages });
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const loadAllSubscriptionMessages = async (topicName, subscriptionName) => {
+    if (!state.activeConnection) return;
+    
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      // Load both active and dead letter messages
+      const [activeMessages, deadLetterMessages] = await Promise.all([
+        azureServiceBusService.peekSubscriptionMessages(state.activeConnection.id, topicName, subscriptionName, 100),
+        azureServiceBusService.getSubscriptionDeadLetterMessages(state.activeConnection.id, topicName, subscriptionName, 100)
+      ]);
+      
+      dispatch({ type: 'SET_MESSAGES', payload: activeMessages });
+      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: deadLetterMessages });
+      
+      // Combine messages with type indicator
+      const combinedMessages = [
+        ...activeMessages.map(msg => ({ ...msg, messageType: 'active' })),
+        ...deadLetterMessages.map(msg => ({ ...msg, messageType: 'deadletter' }))
+      ];
+      
+      dispatch({ type: 'SET_ALL_MESSAGES', payload: combinedMessages });
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const loadDeadLetterMessages = async (queueName, maxMessages = 100) => {
     if (!state.activeConnection) return;
     
     try {
@@ -279,6 +338,58 @@ export function AppProvider({ children }) {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
+  };
+
+  const loadAllDeadLetterMessages = async (queueName) => {
+    if (!state.activeConnection) return;
+    
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      // Load up to 1000 messages to get most/all dead letter messages
+      const messages = await azureServiceBusService.getDeadLetterMessages(
+        state.activeConnection.id, 
+        queueName, 
+        1000
+      );
+      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: messages });
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const loadAllMessageTypes = async (queueName) => {
+    if (!state.activeConnection) return;
+    
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      // Load both active and dead letter messages
+      const [activeMessages, deadLetterMessages] = await Promise.all([
+        azureServiceBusService.peekMessages(state.activeConnection.id, queueName, 100),
+        azureServiceBusService.getDeadLetterMessages(state.activeConnection.id, queueName, 100)
+      ]);
+      
+      dispatch({ type: 'SET_MESSAGES', payload: activeMessages });
+      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: deadLetterMessages });
+      
+      // Combine messages with type indicator
+      const combinedMessages = [
+        ...activeMessages.map(msg => ({ ...msg, messageType: 'active' })),
+        ...deadLetterMessages.map(msg => ({ ...msg, messageType: 'deadletter' }))
+      ];
+      
+      dispatch({ type: 'SET_ALL_MESSAGES', payload: combinedMessages });
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const setMessageFilter = (filter) => {
+    dispatch({ type: 'SET_MESSAGE_FILTER', payload: filter });
   };
 
   const receiveMessage = async (queueName) => {
@@ -331,7 +442,12 @@ export function AppProvider({ children }) {
     selectSubscription,
     loadQueueMessages,
     loadSubscriptionMessages,
+    loadSubscriptionDeadLetterMessages,
+    loadAllSubscriptionMessages,
     loadDeadLetterMessages,
+    loadAllDeadLetterMessages,
+    loadAllMessageTypes,
+    setMessageFilter,
     receiveMessage,
     setSidebarSection,
     setMessagePreview,

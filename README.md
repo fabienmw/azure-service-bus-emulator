@@ -121,9 +121,9 @@ Endpoint=sb://your-namespace.servicebus.windows.net/;SharedAccessKeyName=RootMan
 4. Select a policy with appropriate permissions (Manage, Send, Listen)
 5. Copy the "Primary Connection String"
 
-### Testing with Real Azure Service Bus
+### Using with Azure Service Bus
 
-The application now uses the real Azure Service Bus SDK instead of mock implementations. To test:
+The application requires a real Azure Service Bus instance to function. All mock data has been removed. To use:
 
 1. **Create an Azure Service Bus namespace** (if you don't have one):
    - Go to Azure Portal
@@ -135,10 +135,12 @@ The application now uses the real Azure Service Bus SDK instead of mock implemen
    - Create a few test queues (e.g., "test-queue", "orders-queue")
    - Create a test topic with subscriptions (e.g., "test-topic" with "sub1", "sub2")
 
-3. **Run the application**:
+3. **Run the application** (Electron mode required):
    ```bash
    npm run electron-dev
    ```
+   
+   **Note**: The application must be run in Electron mode (`npm run electron-dev`) to connect to Azure Service Bus. Browser-only mode is not supported.
 
 4. **Connect to your Service Bus**:
    - Click the "+" button to add a new connection

@@ -299,6 +299,41 @@ ipcMain.handle('azure-sb-peek-subscription-messages', async (event, { connection
   }
 });
 
+ipcMain.handle('azure-sb-get-subscription-dead-letter-messages', async (event, { connectionId, topicName, subscriptionName, maxMessages = 10 }) => {
+  const connection = connections.get(connectionId);
+  if (!connection) {
+    return { success: false, error: 'Connection not found' };
+  }
+
+  try {
+    const receiver = connection.client.createReceiver(topicName, subscriptionName, {
+      subQueueType: 'deadLetter'
+    });
+    const messages = await receiver.peekMessages(maxMessages);
+    await receiver.close();
+    
+    const mappedMessages = messages.map(msg => ({
+      messageId: msg.messageId,
+      body: msg.body,
+      label: msg.label,
+      correlationId: msg.correlationId,
+      sessionId: msg.sessionId,
+      partitionKey: msg.partitionKey,
+      enqueuedTimeUtc: msg.enqueuedTimeUtc,
+      expiresAtUtc: msg.expiresAtUtc,
+      deliveryCount: msg.deliveryCount,
+      applicationProperties: msg.applicationProperties,
+      deadLetterSource: msg.deadLetterSource,
+      deadLetterReason: msg.deadLetterReason,
+      deadLetterErrorDescription: msg.deadLetterErrorDescription,
+    }));
+    
+    return { success: true, data: mappedMessages };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('azure-sb-send-message', async (event, { connectionId, queueName, messageBody, label, applicationProperties }) => {
   const connection = connections.get(connectionId);
   if (!connection) {

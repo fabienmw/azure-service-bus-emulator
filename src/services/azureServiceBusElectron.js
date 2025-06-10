@@ -9,16 +9,7 @@ class AzureServiceBusElectronService {
 
   async createConnection(connectionString, name) {
     if (!this.isElectron) {
-      // Mock connection for web development
-      const connection = {
-        id: this.generateId(),
-        name,
-        connectionString: '***hidden***',
-        connected: true,
-        createdAt: new Date(),
-      };
-      this.connections.set(connection.id, connection);
-      return connection;
+      throw new Error('Azure Service Bus connections are only supported in Electron mode. Please run the application using "npm run electron-dev".');
     }
 
     try {
@@ -73,29 +64,7 @@ class AzureServiceBusElectronService {
   // Queue operations
   async getQueues(connectionId) {
     if (!this.isElectron) {
-      // Mock data for development
-      return [
-        {
-          name: 'sample-queue-1',
-          messageCount: 5,
-          activeMessageCount: 3,
-          deadLetterMessageCount: 2,
-          sizeInBytes: 1024,
-          status: 'Active',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        {
-          name: 'sample-queue-2',
-          messageCount: 0,
-          activeMessageCount: 0,
-          deadLetterMessageCount: 0,
-          sizeInBytes: 0,
-          status: 'Active',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }
-      ];
+      throw new Error('Azure Service Bus operations are only supported in Electron mode. Please run the application using "npm run electron-dev".');
     }
 
     try {
@@ -112,16 +81,7 @@ class AzureServiceBusElectronService {
 
   async getQueueDetails(connectionId, queueName) {
     if (!this.isElectron) {
-      return {
-        name: queueName,
-        messageCount: 5,
-        activeMessageCount: 3,
-        deadLetterMessageCount: 2,
-        sizeInBytes: 1024,
-        status: 'Active',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      throw new Error('Azure Service Bus operations are only supported in Electron mode. Please run the application using "npm run electron-dev".');
     }
 
     try {
@@ -138,27 +98,7 @@ class AzureServiceBusElectronService {
 
   async peekMessages(connectionId, queueName, maxMessages = 10) {
     if (!this.isElectron) {
-      // Mock messages
-      return [
-        {
-          messageId: 'msg-001',
-          body: { text: 'Hello, World!', timestamp: new Date().toISOString() },
-          label: 'sample-message',
-          correlationId: 'corr-001',
-          enqueuedTimeUtc: new Date(),
-          deliveryCount: 1,
-          applicationProperties: { source: 'test-app' }
-        },
-        {
-          messageId: 'msg-002',
-          body: 'Simple text message',
-          label: 'text-message',
-          correlationId: 'corr-002',
-          enqueuedTimeUtc: new Date(),
-          deliveryCount: 0,
-          applicationProperties: { priority: 'high' }
-        }
-      ];
+      throw new Error('Azure Service Bus operations are only supported in Electron mode. Please run the application using "npm run electron-dev".');
     }
 
     try {
@@ -175,15 +115,7 @@ class AzureServiceBusElectronService {
 
   async receiveMessage(connectionId, queueName) {
     if (!this.isElectron) {
-      // Mock received message
-      return {
-        messageId: 'msg-received-001',
-        body: { action: 'process', data: 'sample data' },
-        label: 'received-message',
-        enqueuedTimeUtc: new Date(),
-        deliveryCount: 1,
-        applicationProperties: { processed: true }
-      };
+      throw new Error('Azure Service Bus operations are only supported in Electron mode. Please run the application using "npm run electron-dev".');
     }
 
     try {
@@ -200,17 +132,7 @@ class AzureServiceBusElectronService {
 
   async getDeadLetterMessages(connectionId, queueName, maxMessages = 10) {
     if (!this.isElectron) {
-      return [
-        {
-          messageId: 'dlq-001',
-          body: 'Failed message content',
-          label: 'failed-message',
-          enqueuedTimeUtc: new Date(),
-          deliveryCount: 5,
-          deadLetterReason: 'TTLExpired',
-          deadLetterErrorDescription: 'Message exceeded time to live'
-        }
-      ];
+      throw new Error('Azure Service Bus operations are only supported in Electron mode. Please run the application using "npm run electron-dev".');
     }
 
     try {
@@ -228,15 +150,7 @@ class AzureServiceBusElectronService {
   // Topic operations
   async getTopics(connectionId) {
     if (!this.isElectron) {
-      return [
-        {
-          name: 'sample-topic-1',
-          sizeInBytes: 2048,
-          status: 'Active',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }
-      ];
+      throw new Error('Azure Service Bus operations are only supported in Electron mode. Please run the application using "npm run electron-dev".');
     }
 
     try {
@@ -253,18 +167,7 @@ class AzureServiceBusElectronService {
 
   async getSubscriptions(connectionId, topicName) {
     if (!this.isElectron) {
-      return [
-        {
-          name: 'subscription-1',
-          topicName: topicName,
-          messageCount: 3,
-          activeMessageCount: 2,
-          deadLetterMessageCount: 1,
-          status: 'Active',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }
-      ];
+      throw new Error('Azure Service Bus operations are only supported in Electron mode. Please run the application using "npm run electron-dev".');
     }
 
     try {
@@ -281,16 +184,7 @@ class AzureServiceBusElectronService {
 
   async peekSubscriptionMessages(connectionId, topicName, subscriptionName, maxMessages = 10) {
     if (!this.isElectron) {
-      return [
-        {
-          messageId: 'sub-msg-001',
-          body: { event: 'user-registered', userId: '12345' },
-          label: 'user-event',
-          enqueuedTimeUtc: new Date(),
-          deliveryCount: 0,
-          applicationProperties: { eventType: 'registration' }
-        }
-      ];
+      throw new Error('Azure Service Bus operations are only supported in Electron mode. Please run the application using "npm run electron-dev".');
     }
 
     try {
@@ -310,13 +204,31 @@ class AzureServiceBusElectronService {
     }
   }
 
+  async getSubscriptionDeadLetterMessages(connectionId, topicName, subscriptionName, maxMessages = 10) {
+    if (!this.isElectron) {
+      throw new Error('Azure Service Bus operations are only supported in Electron mode. Please run the application using "npm run electron-dev".');
+    }
+
+    try {
+      const result = await ipcRenderer.invoke('azure-sb-get-subscription-dead-letter-messages', { 
+        connectionId, 
+        topicName, 
+        subscriptionName, 
+        maxMessages 
+      });
+      if (result.success) {
+        return result.data;
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      throw new Error(`Failed to get subscription dead letter messages: ${error.message}`);
+    }
+  }
+
   async sendMessage(connectionId, queueName, messageBody, label = '', applicationProperties = {}) {
     if (!this.isElectron) {
-      // Mock sending message
-      return {
-        messageId: 'sent-' + this.generateId(),
-        success: true
-      };
+      throw new Error('Azure Service Bus operations are only supported in Electron mode. Please run the application using "npm run electron-dev".');
     }
 
     try {
@@ -339,11 +251,7 @@ class AzureServiceBusElectronService {
 
   async sendTopicMessage(connectionId, topicName, messageBody, label = '', applicationProperties = {}) {
     if (!this.isElectron) {
-      // Mock sending topic message
-      return {
-        messageId: 'topic-sent-' + this.generateId(),
-        success: true
-      };
+      throw new Error('Azure Service Bus operations are only supported in Electron mode. Please run the application using "npm run electron-dev".');
     }
 
     try {

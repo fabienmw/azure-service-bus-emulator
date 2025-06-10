@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Eye, 
   Download, 
@@ -8,24 +8,46 @@ import {
   Clock, 
   AlertTriangle,
   BarChart3,
-  Settings
+  Settings,
+  ChevronDown
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import MessageList from './MessageList';
 
 function QueueDetails() {
   const [activeTab, setActiveTab] = useState('messages');
+  const [showLoadAllOption, setShowLoadAllOption] = useState(false);
+  const dropdownRef = useRef(null);
   const { 
     selectedQueue, 
     messages, 
     deadLetterMessages,
+    allMessages,
+    messageFilter,
     loading,
     loadQueueMessages,
     loadDeadLetterMessages,
+    loadAllDeadLetterMessages,
+    loadAllMessageTypes,
+    setMessageFilter,
     receiveMessage,
     setMessagePreview,
     activeConnection
   } = useApp();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowLoadAllOption(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handlePeekMessage = (message) => {
     setMessagePreview(message);
@@ -47,11 +69,46 @@ function QueueDetails() {
   const handleRefresh = () => {
     if (!selectedQueue) return;
     
-    if (activeTab === 'messages') {
-      loadQueueMessages(selectedQueue.name);
-    } else if (activeTab === 'deadletter') {
+    if (messageFilter === 'all') {
+      loadAllMessageTypes(selectedQueue.name);
+    } else if (messageFilter === 'deadletter') {
       loadDeadLetterMessages(selectedQueue.name);
+    } else {
+      loadQueueMessages(selectedQueue.name);
     }
+  };
+
+  const handleFilterClick = async (filter) => {
+    if (!selectedQueue) return;
+    
+    setMessageFilter(filter);
+    setActiveTab('messages'); // Switch to messages tab when filtering
+    
+    if (filter === 'all') {
+      await loadAllMessageTypes(selectedQueue.name);
+    } else if (filter === 'deadletter') {
+      await loadDeadLetterMessages(selectedQueue.name);
+    } else if (filter === 'active') {
+      await loadQueueMessages(selectedQueue.name);
+    }
+  };
+
+  // Get the current messages based on filter
+  const getCurrentMessages = () => {
+    switch (messageFilter) {
+      case 'all':
+        return allMessages;
+      case 'deadletter':
+        return deadLetterMessages;
+      case 'active':
+      default:
+        return messages;
+    }
+  };
+
+  const getCurrentMessageCount = () => {
+    const currentMessages = getCurrentMessages();
+    return currentMessages.length;
   };
 
   if (!selectedQueue) return null;
@@ -89,7 +146,12 @@ function QueueDetails() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-primary-50 rounded-lg p-4 border border-primary-200">
+          <button
+            onClick={() => handleFilterClick('all')}
+            className={`bg-primary-50 rounded-lg p-4 border border-primary-200 text-left transition-all hover:bg-primary-100 hover:shadow-md ${
+              messageFilter === 'all' ? 'ring-2 ring-primary-500 bg-primary-100' : ''
+            }`}
+          >
             <div className="flex items-center space-x-2 mb-2">
               <MessageSquare className="h-5 w-5 text-primary-600" />
               <span className="text-sm font-medium text-primary-800">Total Messages</span>
@@ -97,9 +159,17 @@ function QueueDetails() {
             <div className="text-2xl font-bold text-primary-700">
               {selectedQueue.messageCount || 0}
             </div>
-          </div>
+            {messageFilter === 'all' && (
+              <div className="text-xs text-primary-600 mt-1">Showing all messages</div>
+            )}
+          </button>
 
-          <div className="bg-success-50 rounded-lg p-4 border border-success-200">
+          <button
+            onClick={() => handleFilterClick('active')}
+            className={`bg-success-50 rounded-lg p-4 border border-success-200 text-left transition-all hover:bg-success-100 hover:shadow-md ${
+              messageFilter === 'active' ? 'ring-2 ring-success-500 bg-success-100' : ''
+            }`}
+          >
             <div className="flex items-center space-x-2 mb-2">
               <BarChart3 className="h-5 w-5 text-success-600" />
               <span className="text-sm font-medium text-success-800">Active Messages</span>
@@ -107,9 +177,17 @@ function QueueDetails() {
             <div className="text-2xl font-bold text-success-700">
               {selectedQueue.activeMessageCount || 0}
             </div>
-          </div>
+            {messageFilter === 'active' && (
+              <div className="text-xs text-success-600 mt-1">Showing active only</div>
+            )}
+          </button>
 
-          <div className="bg-error-50 rounded-lg p-4 border border-error-200">
+          <button
+            onClick={() => handleFilterClick('deadletter')}
+            className={`bg-error-50 rounded-lg p-4 border border-error-200 text-left transition-all hover:bg-error-100 hover:shadow-md ${
+              messageFilter === 'deadletter' ? 'ring-2 ring-error-500 bg-error-100' : ''
+            }`}
+          >
             <div className="flex items-center space-x-2 mb-2">
               <AlertTriangle className="h-5 w-5 text-error-600" />
               <span className="text-sm font-medium text-error-800">Dead Letters</span>
@@ -117,7 +195,10 @@ function QueueDetails() {
             <div className="text-2xl font-bold text-error-700">
               {selectedQueue.deadLetterMessageCount || 0}
             </div>
-          </div>
+            {messageFilter === 'deadletter' && (
+              <div className="text-xs text-error-600 mt-1">Showing dead letters only</div>
+            )}
+          </button>
 
           <div className="bg-secondary-50 rounded-lg p-4 border border-secondary-200">
             <div className="flex items-center space-x-2 mb-2">
@@ -133,40 +214,104 @@ function QueueDetails() {
 
       {/* Tabs */}
       <div className="bg-white border-b border-secondary-200">
-        <div className="flex space-x-8 px-6">
-          <button
-            onClick={() => setActiveTab('messages')}
-            className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'messages'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-secondary-500 hover:text-secondary-700'
-            }`}
-          >
-            Messages ({messages.length})
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('deadletter');
-              loadDeadLetterMessages(selectedQueue.name);
-            }}
-            className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'deadletter'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-secondary-500 hover:text-secondary-700'
-            }`}
-          >
-            Dead Letter Queue ({deadLetterMessages.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'settings'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-secondary-500 hover:text-secondary-700'
-            }`}
-          >
-            Settings
-          </button>
+        <div className="flex justify-between items-center px-6">
+          <div className="flex space-x-8">
+            <button
+              onClick={() => setActiveTab('messages')}
+              className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'messages'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-secondary-500 hover:text-secondary-700'
+              }`}
+            >
+              Messages ({getCurrentMessageCount()})
+              {messageFilter !== 'active' && (
+                <span className="ml-1 text-xs text-secondary-500">
+                  {messageFilter === 'all' ? '(All)' : messageFilter === 'deadletter' ? '(Dead Letter)' : ''}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('deadletter');
+                setMessageFilter('deadletter');
+                loadDeadLetterMessages(selectedQueue.name);
+              }}
+              className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'deadletter'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-secondary-500 hover:text-secondary-700'
+              }`}
+            >
+              Dead Letter Queue ({deadLetterMessages.length}{selectedQueue.deadLetterMessageCount > deadLetterMessages.length ? `/${selectedQueue.deadLetterMessageCount}` : ''})
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'settings'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-secondary-500 hover:text-secondary-700'
+              }`}
+            >
+              Settings
+            </button>
+          </div>
+
+          {/* Dead Letter Actions */}
+          {activeTab === 'deadletter' && (
+            <div className="flex items-center space-x-2">
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setShowLoadAllOption(!showLoadAllOption)}
+                  className="flex items-center space-x-2 px-3 py-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 rounded-lg transition-colors text-sm"
+                >
+                  <span>Load Options</span>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${showLoadAllOption ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {showLoadAllOption && (
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-secondary-200 rounded-lg shadow-lg z-10 min-w-48">
+                    <button
+                      onClick={() => {
+                        loadDeadLetterMessages(selectedQueue.name, 100);
+                        setShowLoadAllOption(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-secondary-700 hover:bg-secondary-50 first:rounded-t-lg"
+                    >
+                      Load 100 messages
+                    </button>
+                    <button
+                      onClick={() => {
+                        loadDeadLetterMessages(selectedQueue.name, 500);
+                        setShowLoadAllOption(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-secondary-700 hover:bg-secondary-50"
+                    >
+                      Load 500 messages
+                    </button>
+                    <button
+                      onClick={() => {
+                        loadAllDeadLetterMessages(selectedQueue.name);
+                        setShowLoadAllOption(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-secondary-700 hover:bg-secondary-50 last:rounded-b-lg border-t border-secondary-100"
+                    >
+                      Load All Messages (up to 1000)
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              <button
+                onClick={handleRefresh}
+                disabled={loading}
+                className="flex items-center space-x-2 px-3 py-2 bg-primary-100 hover:bg-primary-200 disabled:bg-primary-50 text-primary-700 disabled:text-primary-400 rounded-lg transition-colors text-sm"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -174,10 +319,16 @@ function QueueDetails() {
       <div className="flex-1 overflow-hidden">
         {activeTab === 'messages' && (
           <MessageList 
-            messages={messages}
+            messages={getCurrentMessages()}
             onPeekMessage={handlePeekMessage}
             loading={loading}
-            emptyMessage="No messages in queue"
+            emptyMessage={
+              messageFilter === 'all' ? "No messages found" :
+              messageFilter === 'deadletter' ? "No dead letter messages found" :
+              "No active messages found"
+            }
+            isDeadLetter={messageFilter === 'deadletter'}
+            showMessageType={messageFilter === 'all'}
           />
         )}
         

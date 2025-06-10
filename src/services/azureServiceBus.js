@@ -281,6 +281,37 @@ class AzureServiceBusService {
     }
   }
 
+  async getSubscriptionDeadLetterMessages(connectionId, topicName, subscriptionName, maxMessages = 10) {
+    const connection = this.getConnection(connectionId);
+    if (!connection) throw new Error('Connection not found');
+
+    try {
+      const receiver = connection.client.createReceiver(topicName, subscriptionName, {
+        subQueueType: 'deadLetter'
+      });
+      const messages = await receiver.peekMessages(maxMessages);
+      await receiver.close();
+      
+      return messages.map(msg => ({
+        messageId: msg.messageId,
+        body: msg.body,
+        label: msg.label,
+        correlationId: msg.correlationId,
+        sessionId: msg.sessionId,
+        partitionKey: msg.partitionKey,
+        enqueuedTimeUtc: msg.enqueuedTimeUtc,
+        expiresAtUtc: msg.expiresAtUtc,
+        deliveryCount: msg.deliveryCount,
+        applicationProperties: msg.applicationProperties,
+        deadLetterSource: msg.deadLetterSource,
+        deadLetterReason: msg.deadLetterReason,
+        deadLetterErrorDescription: msg.deadLetterErrorDescription,
+      }));
+    } catch (error) {
+      throw new Error(`Failed to get subscription dead letter messages: ${error.message}`);
+    }
+  }
+
   async sendMessage(connectionId, queueName, messageBody, label = '', applicationProperties = {}) {
     const connection = this.getConnection(connectionId);
     if (!connection) throw new Error('Connection not found');
