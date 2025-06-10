@@ -25,11 +25,12 @@ function QueueDetails() {
     allMessages,
     messageFilter,
     loading,
+    messageCount,
     loadQueueMessages,
     loadDeadLetterMessages,
-    loadAllDeadLetterMessages,
     loadAllMessageTypes,
     setMessageFilter,
+    setMessageCount,
     receiveMessage,
     setMessagePreview,
     activeConnection
@@ -70,11 +71,11 @@ function QueueDetails() {
     if (!selectedQueue) return;
     
     if (messageFilter === 'all') {
-      loadAllMessageTypes(selectedQueue.name);
+      loadAllMessageTypes(selectedQueue.name, messageCount);
     } else if (messageFilter === 'deadletter') {
-      loadDeadLetterMessages(selectedQueue.name);
+      loadDeadLetterMessages(selectedQueue.name, messageCount);
     } else {
-      loadQueueMessages(selectedQueue.name);
+      loadQueueMessages(selectedQueue.name, messageCount);
     }
   };
 
@@ -85,11 +86,11 @@ function QueueDetails() {
     setActiveTab('messages'); // Switch to messages tab when filtering
     
     if (filter === 'all') {
-      await loadAllMessageTypes(selectedQueue.name);
+      await loadAllMessageTypes(selectedQueue.name, messageCount);
     } else if (filter === 'deadletter') {
-      await loadDeadLetterMessages(selectedQueue.name);
+      await loadDeadLetterMessages(selectedQueue.name, messageCount);
     } else if (filter === 'active') {
-      await loadQueueMessages(selectedQueue.name);
+      await loadQueueMessages(selectedQueue.name, messageCount);
     }
   };
 
@@ -109,6 +110,22 @@ function QueueDetails() {
   const getCurrentMessageCount = () => {
     const currentMessages = getCurrentMessages();
     return currentMessages.length;
+  };
+
+  const handleMessageCountChange = async (newCount) => {
+    if (!selectedQueue) return;
+    
+    setMessageCount(newCount);
+    setShowLoadAllOption(false);
+    
+    // Reload messages with new count
+    if (messageFilter === 'all') {
+      await loadAllMessageTypes(selectedQueue.name, newCount);
+    } else if (messageFilter === 'deadletter') {
+      await loadDeadLetterMessages(selectedQueue.name, newCount);
+    } else {
+      await loadQueueMessages(selectedQueue.name, newCount);
+    }
   };
 
   if (!selectedQueue) return null;
@@ -235,7 +252,7 @@ function QueueDetails() {
               onClick={() => {
                 setActiveTab('deadletter');
                 setMessageFilter('deadletter');
-                loadDeadLetterMessages(selectedQueue.name);
+                loadDeadLetterMessages(selectedQueue.name, messageCount);
               }}
               className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'deadletter'
@@ -257,61 +274,46 @@ function QueueDetails() {
             </button>
           </div>
 
-          {/* Dead Letter Actions */}
-          {activeTab === 'deadletter' && (
-            <div className="flex items-center space-x-2">
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  onClick={() => setShowLoadAllOption(!showLoadAllOption)}
-                  className="flex items-center space-x-2 px-3 py-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 rounded-lg transition-colors text-sm"
-                >
-                  <span>Load Options</span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${showLoadAllOption ? 'rotate-180' : ''}`} />
-                </button>
-                
-                {showLoadAllOption && (
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-secondary-200 rounded-lg shadow-lg z-10 min-w-48">
-                    <button
-                      onClick={() => {
-                        loadDeadLetterMessages(selectedQueue.name, 100);
-                        setShowLoadAllOption(false);
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-secondary-700 hover:bg-secondary-50 first:rounded-t-lg"
-                    >
-                      Load 100 messages
-                    </button>
-                    <button
-                      onClick={() => {
-                        loadDeadLetterMessages(selectedQueue.name, 500);
-                        setShowLoadAllOption(false);
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-secondary-700 hover:bg-secondary-50"
-                    >
-                      Load 500 messages
-                    </button>
-                    <button
-                      onClick={() => {
-                        loadAllDeadLetterMessages(selectedQueue.name);
-                        setShowLoadAllOption(false);
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-secondary-700 hover:bg-secondary-50 last:rounded-b-lg border-t border-secondary-100"
-                    >
-                      Load All Messages (up to 1000)
-                    </button>
-                  </div>
-                )}
-              </div>
-              
+          {/* Message Count Selector */}
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-secondary-600">Show:</span>
+            <div className="relative" ref={dropdownRef}>
               <button
-                onClick={handleRefresh}
-                disabled={loading}
-                className="flex items-center space-x-2 px-3 py-2 bg-primary-100 hover:bg-primary-200 disabled:bg-primary-50 text-primary-700 disabled:text-primary-400 rounded-lg transition-colors text-sm"
+                onClick={() => setShowLoadAllOption(!showLoadAllOption)}
+                className="flex items-center space-x-2 px-3 py-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 rounded-lg transition-colors text-sm"
               >
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
+                <span>{messageCount === 'all' ? 'All' : messageCount} messages</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${showLoadAllOption ? 'rotate-180' : ''}`} />
               </button>
+              
+              {showLoadAllOption && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-secondary-200 rounded-lg shadow-lg z-10 min-w-32">
+                  {[10, 20, 50, 100, 'all'].map((count) => (
+                    <button
+                      key={count}
+                      onClick={() => handleMessageCountChange(count)}
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                        messageCount === count 
+                          ? 'bg-primary-50 text-primary-700' 
+                          : 'text-secondary-700 hover:bg-secondary-50'
+                      }`}
+                    >
+                      {count === 'all' ? 'All messages' : `${count} messages`}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+            
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="flex items-center space-x-2 px-3 py-2 bg-primary-100 hover:bg-primary-200 disabled:bg-primary-50 text-primary-700 disabled:text-primary-400 rounded-lg transition-colors text-sm"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
       </div>
 

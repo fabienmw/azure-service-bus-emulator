@@ -20,6 +20,7 @@ const initialState = {
   error: null,
   sidebarSection: 'connections', // connections, queues, topics, subscriptions
   messagePreview: null,
+  messageCount: 50, // Selected message count for loading
 };
 
 function appReducer(state, action) {
@@ -84,6 +85,11 @@ function appReducer(state, action) {
         deadLetterMessages: [],
         allMessages: [],
         messageFilter: 'active',
+        pagination: {
+          hasMoreActive: true,
+          hasMoreDeadLetter: true,
+          batchSize: 50,
+        },
       };
     
     case 'SET_SELECTED_TOPIC':
@@ -118,6 +124,9 @@ function appReducer(state, action) {
     
     case 'SET_MESSAGE_FILTER':
       return { ...state, messageFilter: action.payload };
+    
+    case 'SET_MESSAGE_COUNT':
+      return { ...state, messageCount: action.payload };
     
     case 'SET_SIDEBAR_SECTION':
       return { ...state, sidebarSection: action.payload };
@@ -239,11 +248,13 @@ export function AppProvider({ children }) {
     setMessageFilter('all');
   };
 
-  const loadQueueMessages = async (queueName, maxMessages = 50) => {
+  const loadQueueMessages = async (queueName, count = null) => {
     if (!state.activeConnection) return;
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      const actualCount = count || state.messageCount;
+      const maxMessages = actualCount === 'all' ? 1000 : actualCount;
       const messages = await azureServiceBusService.peekMessages(
         state.activeConnection.id, 
         queueName, 
@@ -257,11 +268,13 @@ export function AppProvider({ children }) {
     }
   };
 
-  const loadSubscriptionMessages = async (topicName, subscriptionName, maxMessages = 30) => {
+  const loadSubscriptionMessages = async (topicName, subscriptionName, count = null) => {
     if (!state.activeConnection) return;
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      const actualCount = count || state.messageCount;
+      const maxMessages = actualCount === 'all' ? 1000 : actualCount;
       const messages = await azureServiceBusService.peekSubscriptionMessages(
         state.activeConnection.id, 
         topicName, 
@@ -276,11 +289,13 @@ export function AppProvider({ children }) {
     }
   };
 
-  const loadSubscriptionDeadLetterMessages = async (topicName, subscriptionName, maxMessages = 50) => {
+  const loadSubscriptionDeadLetterMessages = async (topicName, subscriptionName, count = null) => {
     if (!state.activeConnection) return;
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      const actualCount = count || state.messageCount;
+      const maxMessages = actualCount === 'all' ? 1000 : actualCount;
       const messages = await azureServiceBusService.getSubscriptionDeadLetterMessages(
         state.activeConnection.id, 
         topicName, 
@@ -295,16 +310,18 @@ export function AppProvider({ children }) {
     }
   };
 
-  const loadAllSubscriptionMessages = async (topicName, subscriptionName) => {
+  const loadAllSubscriptionMessages = async (topicName, subscriptionName, count = null) => {
     if (!state.activeConnection) return;
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      const actualCount = count || state.messageCount;
+      const maxMessages = actualCount === 'all' ? 1000 : actualCount;
       
-      // Load both active and dead letter messages with reduced limits for better performance
+      // Load both active and dead letter messages
       const [activeMessages, deadLetterMessages] = await Promise.all([
-        azureServiceBusService.peekSubscriptionMessages(state.activeConnection.id, topicName, subscriptionName, 50),
-        azureServiceBusService.getSubscriptionDeadLetterMessages(state.activeConnection.id, topicName, subscriptionName, 50)
+        azureServiceBusService.peekSubscriptionMessages(state.activeConnection.id, topicName, subscriptionName, maxMessages),
+        azureServiceBusService.getSubscriptionDeadLetterMessages(state.activeConnection.id, topicName, subscriptionName, maxMessages)
       ]);
       
       dispatch({ type: 'SET_MESSAGES', payload: activeMessages });
@@ -324,11 +341,13 @@ export function AppProvider({ children }) {
     }
   };
 
-  const loadDeadLetterMessages = async (queueName, maxMessages = 100) => {
+  const loadDeadLetterMessages = async (queueName, count = null) => {
     if (!state.activeConnection) return;
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      const actualCount = count || state.messageCount;
+      const maxMessages = actualCount === 'all' ? 1000 : actualCount;
       const messages = await azureServiceBusService.getDeadLetterMessages(
         state.activeConnection.id, 
         queueName, 
@@ -342,35 +361,20 @@ export function AppProvider({ children }) {
     }
   };
 
-  const loadAllDeadLetterMessages = async (queueName) => {
-    if (!state.activeConnection) return;
-    
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      // Load up to 1000 messages to get most/all dead letter messages
-      const messages = await azureServiceBusService.getDeadLetterMessages(
-        state.activeConnection.id, 
-        queueName, 
-        1000
-      );
-      dispatch({ type: 'SET_DEAD_LETTER_MESSAGES', payload: messages });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  };
 
-  const loadAllMessageTypes = async (queueName) => {
+
+  const loadAllMessageTypes = async (queueName, count = null) => {
     if (!state.activeConnection) return;
     
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      const actualCount = count || state.messageCount;
+      const maxMessages = actualCount === 'all' ? 1000 : actualCount;
       
       // Load both active and dead letter messages
       const [activeMessages, deadLetterMessages] = await Promise.all([
-        azureServiceBusService.peekMessages(state.activeConnection.id, queueName, 100),
-        azureServiceBusService.getDeadLetterMessages(state.activeConnection.id, queueName, 100)
+        azureServiceBusService.peekMessages(state.activeConnection.id, queueName, maxMessages),
+        azureServiceBusService.getDeadLetterMessages(state.activeConnection.id, queueName, maxMessages)
       ]);
       
       dispatch({ type: 'SET_MESSAGES', payload: activeMessages });
@@ -393,6 +397,12 @@ export function AppProvider({ children }) {
   const setMessageFilter = (filter) => {
     dispatch({ type: 'SET_MESSAGE_FILTER', payload: filter });
   };
+
+  const setMessageCount = (count) => {
+    dispatch({ type: 'SET_MESSAGE_COUNT', payload: count });
+  };
+
+
 
   const receiveMessage = async (queueName) => {
     if (!state.activeConnection) return;
@@ -447,9 +457,9 @@ export function AppProvider({ children }) {
     loadSubscriptionDeadLetterMessages,
     loadAllSubscriptionMessages,
     loadDeadLetterMessages,
-    loadAllDeadLetterMessages,
     loadAllMessageTypes,
     setMessageFilter,
+    setMessageCount,
     receiveMessage,
     setSidebarSection,
     setMessagePreview,

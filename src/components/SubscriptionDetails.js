@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   GitBranch, 
   MessageSquare, 
@@ -7,13 +7,16 @@ import {
   Clock,
   RefreshCw,
   Settings,
-  Eye
+  Eye,
+  ChevronDown
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import MessageList from './MessageList';
 
 function SubscriptionDetails() {
   const [activeTab, setActiveTab] = useState('messages');
+  const [showLoadAllOption, setShowLoadAllOption] = useState(false);
+  const dropdownRef = useRef(null);
   const { 
     selectedSubscription, 
     messages,
@@ -21,12 +24,28 @@ function SubscriptionDetails() {
     allMessages,
     messageFilter,
     loading,
+    messageCount,
     loadSubscriptionMessages,
     loadSubscriptionDeadLetterMessages,
     loadAllSubscriptionMessages,
     setMessageFilter,
+    setMessageCount,
     setMessagePreview
   } = useApp();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowLoadAllOption(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handlePeekMessage = (message) => {
     setMessagePreview(message);
@@ -37,7 +56,7 @@ function SubscriptionDetails() {
     
     // Always refresh all message types to maintain state consistency across filters
     // This ensures that switching filters after refresh will still work correctly
-    await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
+    await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name, messageCount);
     
     // The current messageFilter state is preserved, so the user sees the same view
     // but with refreshed data that's consistent across all filter types
@@ -55,7 +74,7 @@ function SubscriptionDetails() {
       const needsReload = allMessages.length === 0 || 
                          (messages.length === 0 && deadLetterMessages.length === 0);
       if (needsReload) {
-        await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
+        await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name, messageCount);
       }
     }
     
@@ -81,6 +100,16 @@ function SubscriptionDetails() {
     return currentMessages.length;
   };
 
+  const handleMessageCountChange = async (newCount) => {
+    if (!selectedSubscription) return;
+    
+    setMessageCount(newCount);
+    setShowLoadAllOption(false);
+    
+    // Reload messages with new count
+    await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name, newCount);
+  };
+
   if (!selectedSubscription) return null;
 
   return (
@@ -97,10 +126,39 @@ function SubscriptionDetails() {
             </p>
           </div>
           <div className="flex items-center space-x-2">
+            <span className="text-sm text-secondary-600">Show:</span>
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setShowLoadAllOption(!showLoadAllOption)}
+                className="flex items-center space-x-2 px-3 py-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 rounded-lg transition-colors text-sm"
+              >
+                <span>{messageCount === 'all' ? 'All' : messageCount} messages</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${showLoadAllOption ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {showLoadAllOption && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-secondary-200 rounded-lg shadow-lg z-10 min-w-32">
+                  {[10, 20, 50, 100, 'all'].map((count) => (
+                    <button
+                      key={count}
+                      onClick={() => handleMessageCountChange(count)}
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                        messageCount === count 
+                          ? 'bg-primary-50 text-primary-700' 
+                          : 'text-secondary-700 hover:bg-secondary-50'
+                      }`}
+                    >
+                      {count === 'all' ? 'All messages' : `${count} messages`}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            
             <button
               onClick={handleRefresh}
               disabled={loading}
-              className="flex items-center space-x-2 px-4 py-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center space-x-2 px-4 py-2 bg-primary-100 hover:bg-primary-200 disabled:bg-primary-50 text-primary-700 disabled:text-primary-400 rounded-lg transition-colors"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               <span>Refresh</span>

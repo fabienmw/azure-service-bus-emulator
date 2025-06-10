@@ -1,7 +1,14 @@
 import React from 'react';
 import { Eye, Calendar, Hash, Tag, AlertTriangle, MessageSquare } from 'lucide-react';
 
-function MessageList({ messages, onPeekMessage, loading, emptyMessage, isDeadLetter = false, showMessageType = false }) {
+function MessageList({ 
+  messages, 
+  onPeekMessage, 
+  loading, 
+  emptyMessage, 
+  isDeadLetter = false, 
+  showMessageType = false
+}) {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -159,6 +166,7 @@ function MessageList({ messages, onPeekMessage, loading, emptyMessage, isDeadLet
             ))}
           </tbody>
         </table>
+
       </div>
     </div>
   );
