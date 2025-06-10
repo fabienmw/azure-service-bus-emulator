@@ -32,9 +32,6 @@ function SubscriptionDetails() {
     messageFilter,
     loading,
     pagination, // Keep this for compatibility, but we'll use localPagination
-    loadSubscriptionMessages,
-    loadSubscriptionDeadLetterMessages,
-    loadAllSubscriptionMessages,
     setMessageFilter,
     setMessagePreview,
     setPage, // Keep for global compatibility, but not used for display

@@ -3,6 +3,9 @@ import azureServiceBusService from '../services/azureServiceBusElectron';
 
 const AppContext = createContext();
 
+// Constants
+const DEFAULT_PAGE_SIZE = 20;
+
 const initialState = {
   connections: [],
   activeConnection: null,
