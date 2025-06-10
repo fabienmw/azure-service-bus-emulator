@@ -64,6 +64,25 @@ function appReducer(state, action) {
         activeConnection: state.activeConnection?.id === action.payload ? null : state.activeConnection,
       };
     
+    case 'UPDATE_CONNECTION_STATUS':
+      return {
+        ...state,
+        connections: state.connections.map(conn => 
+          conn.id === action.payload.id 
+            ? { ...conn, connected: action.payload.connected }
+            : conn
+        ),
+        activeConnection: state.activeConnection?.id === action.payload.id 
+          ? { ...state.activeConnection, connected: action.payload.connected }
+          : state.activeConnection,
+      };
+    
+    case 'ADD_SAVED_CONNECTION':
+      return { 
+        ...state, 
+        connections: [...state.connections, action.payload],
+      };
+    
     case 'SET_ACTIVE_CONNECTION':
       return { 
         ...state, 
@@ -242,22 +261,104 @@ function appReducer(state, action) {
   }
 }
 
+// Helper functions for localStorage
+const SAVED_CONNECTIONS_KEY = 'azure-service-bus-saved-connections';
+
+const loadSavedConnections = () => {
+  try {
+    const saved = localStorage.getItem(SAVED_CONNECTIONS_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch (error) {
+    console.error('Error loading saved connections:', error);
+    return [];
+  }
+};
+
+const saveSavedConnections = (connections) => {
+  try {
+    localStorage.setItem(SAVED_CONNECTIONS_KEY, JSON.stringify(connections));
+  } catch (error) {
+    console.error('Error saving connections:', error);
+  }
+};
+
+const addSavedConnection = (connection) => {
+  const savedConnections = loadSavedConnections();
+  const updatedConnections = savedConnections.filter(conn => conn.id !== connection.id);
+  updatedConnections.push(connection);
+  saveSavedConnections(updatedConnections);
+};
+
+const removeSavedConnection = (connectionId) => {
+  const savedConnections = loadSavedConnections();
+  const updatedConnections = savedConnections.filter(conn => conn.id !== connectionId);
+  saveSavedConnections(updatedConnections);
+};
+
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
   useEffect(() => {
     // Load existing connections on startup
     const connections = azureServiceBusService.getAllConnections();
-    dispatch({ type: 'SET_CONNECTIONS', payload: connections });
+    
+    // Load saved connections from localStorage
+    const savedConnections = loadSavedConnections();
+    
+    console.log('Active connections from service:', connections);
+    console.log('Saved connections from localStorage:', savedConnections);
+    
+    // Merge active connections with saved ones, prioritizing saved connection data
+    const mergedConnections = [];
+    
+    // Add all active connections first
+    connections.forEach(activeConn => {
+      const savedConn = savedConnections.find(saved => saved.id === activeConn.id);
+      if (savedConn) {
+        // If connection exists in both, merge them with saved connection taking priority for connection string
+        mergedConnections.push({
+          ...activeConn,
+          connectionString: savedConn.connectionString,
+          saved: true
+        });
+      } else {
+        // Just active connection
+        mergedConnections.push(activeConn);
+      }
+    });
+    
+    // Add saved connections that are not in active connections (disconnected saved connections)
+    savedConnections.forEach(savedConn => {
+      if (!connections.find(activeConn => activeConn.id === savedConn.id)) {
+        mergedConnections.push({
+          ...savedConn,
+          connected: false // Mark as disconnected since not in active connections
+        });
+      }
+    });
+    
+    console.log('Final merged connections:', mergedConnections);
+    
+    dispatch({ type: 'SET_CONNECTIONS', payload: mergedConnections });
   }, []);
 
-  const createConnection = async (connectionString, name) => {
+  const createConnection = async (connectionString, name, saveConnection = false) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       dispatch({ type: 'CLEAR_ERROR' });
       
       const connection = await azureServiceBusService.createConnection(connectionString, name);
       dispatch({ type: 'ADD_CONNECTION', payload: connection });
+      
+      // If saving, add to localStorage
+      if (saveConnection) {
+        const savedConnection = {
+          ...connection,
+          connectionString, // Store the connection string for saved connections
+          saved: true
+        };
+        addSavedConnection(savedConnection);
+      }
       
       // Set as active connection and immediately load counts
       dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: connection });
@@ -317,7 +418,9 @@ export function AppProvider({ children }) {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       await azureServiceBusService.disconnectConnection(connectionId);
-      dispatch({ type: 'REMOVE_CONNECTION', payload: connectionId });
+      
+      // Update connection status to disconnected instead of removing
+      dispatch({ type: 'UPDATE_CONNECTION_STATUS', payload: { id: connectionId, connected: false } });
       
       // If the disconnected connection was the active one, clear related data
       if (state.activeConnection?.id === connectionId) {
@@ -330,6 +433,120 @@ export function AppProvider({ children }) {
       }
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const removeConnection = async (connectionId) => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      // Disconnect if connected
+      const connection = state.connections.find(conn => conn.id === connectionId);
+      if (connection?.connected) {
+        await azureServiceBusService.disconnectConnection(connectionId);
+      }
+      
+      // Remove from saved connections
+      removeSavedConnection(connectionId);
+      
+      // Remove from state
+      dispatch({ type: 'REMOVE_CONNECTION', payload: connectionId });
+      
+      // If the removed connection was the active one, clear related data
+      if (state.activeConnection?.id === connectionId) {
+        dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: null });
+        dispatch({ type: 'SET_QUEUES', payload: [] });
+        dispatch({ type: 'SET_TOPICS', payload: [] });
+        dispatch({ type: 'SET_SELECTED_QUEUE', payload: null });
+        dispatch({ type: 'SET_SELECTED_TOPIC', payload: null });
+        dispatch({ type: 'SET_SELECTED_SUBSCRIPTION', payload: null });
+      }
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const reconnectConnection = async (connection) => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      dispatch({ type: 'CLEAR_ERROR' });
+      
+      // Get connection string from localStorage if not in connection object
+      let connectionString = connection.connectionString;
+      if (!connectionString) {
+        const savedConnections = loadSavedConnections();
+        const savedConnection = savedConnections.find(saved => saved.id === connection.id);
+        connectionString = savedConnection?.connectionString;
+      }
+      
+      // Debug logging
+      console.log('Reconnecting connection:', connection);
+      console.log('Connection string found:', !!connectionString);
+      
+      // Check if connection string exists
+      if (!connectionString) {
+        throw new Error('Connection string not found for saved connection. Please check if the connection was saved properly.');
+      }
+      
+      // Use the connection string to reconnect
+      const reconnectedConnection = await azureServiceBusService.createConnection(
+        connectionString, 
+        connection.name
+      );
+      
+      // Update the connection status
+      dispatch({ type: 'UPDATE_CONNECTION_STATUS', payload: { id: connection.id, connected: true } });
+      
+      // Set as active connection and load data
+      dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: reconnectedConnection });
+      
+      try {
+        // Load queues and topics
+        const [queues, topics] = await Promise.all([
+          azureServiceBusService.getQueues(reconnectedConnection.id),
+          azureServiceBusService.getTopics(reconnectedConnection.id)
+        ]);
+        
+        dispatch({ type: 'SET_QUEUES', payload: queues });
+        dispatch({ type: 'SET_TOPICS', payload: topics });
+        
+        // Load message counts
+        const queueMessageCounts = queues.reduce((acc, queue) => {
+          acc[queue.name] = queue.messageCount || 0;
+          return acc;
+        }, {});
+        dispatch({ type: 'SET_QUEUE_MESSAGE_COUNTS', payload: queueMessageCounts });
+        
+        // Load subscriptions for topics
+        if (topics.length > 0) {
+          const subscriptionPromises = topics.map(async (topic) => {
+            try {
+              const subscriptions = await azureServiceBusService.getSubscriptions(reconnectedConnection.id, topic.name);
+              return { topicName: topic.name, subscriptions };
+            } catch (error) {
+              console.error(`Error loading subscriptions for topic ${topic.name}:`, error);
+              return { topicName: topic.name, subscriptions: [] };
+            }
+          });
+          
+          const subscriptionResults = await Promise.all(subscriptionPromises);
+          subscriptionResults.forEach(result => {
+            dispatch({ type: 'SET_SUBSCRIPTIONS_BY_TOPIC', payload: result });
+          });
+        }
+        
+      } catch (loadError) {
+        console.error('Error loading data for reconnected connection:', loadError);
+      }
+      
+      return reconnectedConnection;
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+      throw error;
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
@@ -735,6 +952,8 @@ export function AppProvider({ children }) {
     ...state,
     createConnection,
     disconnectConnection,
+    removeConnection,
+    reconnectConnection,
     setActiveConnection,
     toggleConnectionChildren,
     loadQueues,

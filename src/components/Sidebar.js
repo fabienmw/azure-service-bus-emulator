@@ -9,7 +9,9 @@ import {
   WifiOff,
   ChevronRight,
   ChevronDown,
-  Settings
+  Settings,
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import classNames from 'classnames';
@@ -38,6 +40,8 @@ function Sidebar({ onNewConnection }) {
     toggleTopicDetailsExpanded,
     toggleTopicSubscriptionsExpanded,
     disconnectConnection,
+    removeConnection,
+    reconnectConnection,
   } = useApp();
 
   return (
@@ -100,14 +104,24 @@ function Sidebar({ onNewConnection }) {
                         <div 
                           className="flex items-center space-x-2 flex-1 min-w-0"
                           onClick={async () => {
-                            // If this connection is already active, just toggle its children
-                            if (activeConnection?.id === connection.id) {
-                              toggleConnectionChildren(connection.id);
-                            } else {
-                              // Set as active and expand children
-                              await setActiveConnection(connection);
-                              if (!expandedStates.connectionChildren[connection.id]) {
+                            // If disconnected, try to reconnect first
+                            if (!connection.connected && connection.connectionString) {
+                              try {
+                                await reconnectConnection(connection);
                                 toggleConnectionChildren(connection.id);
+                              } catch (error) {
+                                console.error('Failed to reconnect:', error);
+                              }
+                            } else if (connection.connected) {
+                              // If this connection is already active, just toggle its children
+                              if (activeConnection?.id === connection.id) {
+                                toggleConnectionChildren(connection.id);
+                              } else {
+                                // Set as active and expand children
+                                await setActiveConnection(connection);
+                                if (!expandedStates.connectionChildren[connection.id]) {
+                                  toggleConnectionChildren(connection.id);
+                                }
                               }
                             }
                           }}
@@ -124,9 +138,16 @@ function Sidebar({ onNewConnection }) {
                           ) : (
                             <WifiOff className="h-4 w-4 text-error-500 flex-shrink-0" />
                           )}
-                          <span className="text-sm font-medium text-secondary-700 truncate">
-                            {connection.name}
-                          </span>
+                          <div className="flex items-center space-x-1 min-w-0">
+                            <span className="text-sm font-medium text-secondary-700 truncate">
+                              {connection.name}
+                            </span>
+                            {connection.saved && (
+                              <span className="text-xs bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full font-medium">
+                                Saved
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center space-x-2">
                           {/* Show counts immediately when connection is active */}
@@ -142,16 +163,43 @@ function Sidebar({ onNewConnection }) {
                               </div>
                             </div>
                           )}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              disconnectConnection(connection.id);
-                            }}
-                            className="p-1 hover:bg-error-100 rounded transition-colors"
-                            title="Disconnect"
-                          >
-                            <WifiOff className="h-3 w-3 text-error-500" />
-                          </button>
+                          {connection.connected ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                disconnectConnection(connection.id);
+                              }}
+                              className="p-1 hover:bg-warning-100 rounded transition-colors"
+                              title="Disconnect"
+                            >
+                              <WifiOff className="h-3 w-3 text-warning-600" />
+                            </button>
+                          ) : (
+                            <div className="flex items-center space-x-1">
+                              {connection.connectionString && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    reconnectConnection(connection);
+                                  }}
+                                  className="p-1 hover:bg-success-100 rounded transition-colors"
+                                  title="Reconnect"
+                                >
+                                  <RefreshCw className="h-3 w-3 text-success-600" />
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeConnection(connection.id);
+                                }}
+                                className="p-1 hover:bg-error-100 rounded transition-colors"
+                                title="Remove Connection"
+                              >
+                                <Trash2 className="h-3 w-3 text-error-500" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
 
