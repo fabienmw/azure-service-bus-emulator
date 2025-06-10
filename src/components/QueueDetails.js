@@ -57,28 +57,10 @@ function QueueDetails() {
   };
 
   const handleRefresh = async () => {
-    if (!selectedQueue) {
-      console.log(`❌ No selected queue for refresh`);
-      return;
-    }
-    
-    if (loading) {
-      console.log(`⚠️  Already loading, skipping refresh to prevent race condition`);
-      return;
-    }
-    
-    console.log(`🔄 Queue refresh button clicked - calling selectQueue`, {
-      queueName: selectedQueue.name,
-      loading,
-      currentMessageFilter: messageFilter
-    });
-    
     try {
-      // Simply call selectQueue with current queue (same as clicking queue name)
       await selectQueue(selectedQueue);
-      console.log(`✅ Queue refresh completed successfully`);
     } catch (error) {
-      console.error(`❌ Queue refresh failed:`, error);
+      console.error('Failed to refresh queue:', error);
     }
   };
 

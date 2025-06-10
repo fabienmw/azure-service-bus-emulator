@@ -98,214 +98,39 @@ function SubscriptionDetails() {
   };
 
   const handleRefresh = async () => {
-    if (!selectedSubscription) {
-      console.log(`❌ No selected subscription for refresh`);
-      return;
-    }
-    
-    if (loading) {
-      console.log(`⚠️  Already loading, skipping refresh to prevent race condition`);
-      return;
-    }
-    
-    console.log(`🔄 Refresh button clicked - calling selectSubscription`, {
-      subscriptionName: selectedSubscription.name,
-      topicName: selectedSubscription.topicName,
-      loading,
-      currentMessageFilter: messageFilter
-    });
-    
     try {
-      // Simply call selectSubscription with current subscription (same as clicking subscription name)
       await selectSubscription(selectedSubscription);
-      console.log(`✅ Refresh completed successfully`);
     } catch (error) {
-      console.error(`❌ Refresh failed:`, error);
+      console.error('Failed to refresh subscription:', error);
     }
   };
 
-  const handleFilterClick = async (filter) => {
-    if (!selectedSubscription) return;
-    
-    console.log(`🎯 handleFilterClick called with filter: ${filter}`);
-    console.log(`📊 Current state:`, {
-      subscriptionMessages: subscriptionMessages.length,
-      subscriptionDeadLetterMessages: subscriptionDeadLetterMessages.length,
-      subscriptionAllMessages: subscriptionAllMessages.length,
-      currentFilter: messageFilter
-    });
-    
-    // Set the new filter first
+  const handleFilterClick = (filter) => {
     setMessageFilter(filter);
-    setActiveTab('messages'); // Switch to messages tab when filtering
-    
-    // Determine which messages we need and if we need to load them
-    let needsLoading = false;
-    let targetMessages = [];
-    
-    if (filter === 'all') {
-      targetMessages = subscriptionAllMessages;
-      needsLoading = subscriptionAllMessages.length === 0;
-    } else if (filter === 'deadletter') {
-      targetMessages = subscriptionDeadLetterMessages;
-      needsLoading = subscriptionDeadLetterMessages.length === 0;
-    } else if (filter === 'active') {
-      targetMessages = subscriptionMessages;
-      needsLoading = subscriptionMessages.length === 0;
-    }
-    
-    console.log(`🔍 Target messages:`, {
-      filter,
-      targetMessagesLength: targetMessages.length,
-      needsLoading
-    });
-    
-    // Only load if we don't have the data yet
-    if (needsLoading) {
-      console.log(`📥 Loading data for filter: ${filter}`);
-      if (filter === 'all') {
-        await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
-      } else if (filter === 'deadletter') {
-        await loadSubscriptionDeadLetterMessages(selectedSubscription.topicName, selectedSubscription.name);
-      } else if (filter === 'active') {
-        await loadSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
-      }
-    } else {
-      console.log(`✨ Using cached data for filter: ${filter}, setting up pagination...`);
-      // We have the data, just update pagination for this filter
-      updateLocalPagination(filter, { currentPage: 1 });
-    }
   };
 
-  // Get the current messages based on filter
+  // Get messages for current filter
   const getCurrentMessages = () => {
-    let currentMessages;
-    switch (messageFilter) {
-      case 'all':
-        currentMessages = subscriptionAllMessages;
-        break;
-      case 'deadletter':
-        currentMessages = subscriptionDeadLetterMessages;
-        break;
-      case 'active':
-      default:
-        currentMessages = subscriptionMessages;
-        break;
-    }
-    
-    console.log(`🔍 getCurrentMessages() called:`, {
-      filter: messageFilter,
-      subscriptionMessages: subscriptionMessages.length,
-      subscriptionDeadLetterMessages: subscriptionDeadLetterMessages.length,
-      subscriptionAllMessages: subscriptionAllMessages.length,
-      currentMessages: currentMessages.length,
-      selectedSubscription: selectedSubscription?.name,
-      loading,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Additional debugging if no messages found but we expect them
-    if (currentMessages.length === 0 && messageFilter === 'all') {
-      console.warn(`⚠️  No messages found for 'all' filter, checking individual arrays:`, {
-        subscriptionMessages: subscriptionMessages,
-        subscriptionDeadLetterMessages: subscriptionDeadLetterMessages,
-        subscriptionAllMessages: subscriptionAllMessages
-      });
-    }
-    
-    return currentMessages;
+    const messageMap = {
+      'active': subscriptionMessages,
+      'deadletter': subscriptionDeadLetterMessages,
+      'all': subscriptionAllMessages
+    };
+    return messageMap[messageFilter] || [];
   };
 
+  // Get count for current filter
   const getCurrentMessageCount = () => {
-    const currentMessages = getCurrentMessages();
-    console.log(`📊 getCurrentMessageCount():`, {
-      filter: messageFilter,
-      count: currentMessages.length,
-      timestamp: new Date().toISOString()
-    });
-    return currentMessages.length;
+    const messages = getCurrentMessages();
+    return messages.length;
   };
 
   const getPaginatedCurrentMessages = () => {
-    console.log(`📄 getPaginatedCurrentMessages() START:`, {
-      filter: messageFilter,
-      loading,
-      localPagination,
-      timestamp: new Date().toISOString()
-    });
-    
     const currentMessages = getCurrentMessages();
     const paginatedMessages = getLocalPaginatedMessages(currentMessages);
     
-    console.log(`📄 getPaginatedCurrentMessages() RESULT:`, {
-      totalMessages: currentMessages.length,
-      currentPage: getCurrentPagination().currentPage,
-      pageSize: getCurrentPagination().pageSize,
-      paginatedCount: paginatedMessages.length,
-      pagination: getCurrentPagination(),
-      timestamp: new Date().toISOString()
-    });
-    
-    // Additional warning if pagination seems wrong
-    if (currentMessages.length > 0 && paginatedMessages.length === 0) {
-      console.warn(`⚠️  Pagination issue detected:`, {
-        totalMessages: currentMessages.length,
-        pagination: getCurrentPagination(),
-        expectedStartIndex: (getCurrentPagination().currentPage - 1) * getCurrentPagination().pageSize,
-        localPagination
-      });
-    }
-    
     return paginatedMessages;
   };
-
-  console.log(`🖥️  SubscriptionDetails render:`, {
-    selectedSubscription: selectedSubscription?.name,
-    messageFilter,
-    subscriptionMessages: subscriptionMessages.length,
-    subscriptionDeadLetterMessages: subscriptionDeadLetterMessages.length,
-    subscriptionAllMessages: subscriptionAllMessages.length,
-    pagination: getCurrentPagination()
-  });
-
-  // Track state changes with useEffect for debugging
-  useEffect(() => {
-    console.log(`🔄 subscriptionMessages changed:`, {
-      length: subscriptionMessages.length,
-      first: subscriptionMessages[0]?.messageId || 'none',
-      timestamp: new Date().toISOString()
-    });
-  }, [subscriptionMessages]);
-
-  useEffect(() => {
-    console.log(`🔄 subscriptionDeadLetterMessages changed:`, {
-      length: subscriptionDeadLetterMessages.length,
-      first: subscriptionDeadLetterMessages[0]?.messageId || 'none',
-      timestamp: new Date().toISOString()
-    });
-  }, [subscriptionDeadLetterMessages]);
-
-  useEffect(() => {
-    console.log(`🔄 subscriptionAllMessages changed:`, {
-      length: subscriptionAllMessages.length,
-      first: subscriptionAllMessages[0]?.messageId || 'none',
-      timestamp: new Date().toISOString()
-    });
-  }, [subscriptionAllMessages]);
-
-  useEffect(() => {
-    console.log(`🔄 messageFilter changed:`, {
-      filter: messageFilter,
-      timestamp: new Date().toISOString()
-    });
-  }, [messageFilter]);
-
-  useEffect(() => {
-    console.log(`🔄 loading state changed:`, {
-      loading,
-      timestamp: new Date().toISOString()
-    });
-  }, [loading]);
 
   if (!selectedSubscription) return null;
 

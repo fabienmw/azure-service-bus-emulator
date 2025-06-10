@@ -282,30 +282,12 @@ function appReducer(state, action) {
     
     // Subscription message actions
     case 'SET_SUBSCRIPTION_MESSAGES':
-      console.log(`🔄 REDUCER: SET_SUBSCRIPTION_MESSAGES`, {
-        newLength: action.payload.length,
-        currentLength: state.subscriptionMessages.length,
-        first: action.payload[0]?.messageId || 'none',
-        timestamp: new Date().toISOString()
-      });
       return { ...state, subscriptionMessages: action.payload };
     
     case 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES':
-      console.log(`🔄 REDUCER: SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES`, {
-        newLength: action.payload.length,
-        currentLength: state.subscriptionDeadLetterMessages.length,
-        first: action.payload[0]?.messageId || 'none',
-        timestamp: new Date().toISOString()
-      });
       return { ...state, subscriptionDeadLetterMessages: action.payload };
     
     case 'SET_SUBSCRIPTION_ALL_MESSAGES':
-      console.log(`🔄 REDUCER: SET_SUBSCRIPTION_ALL_MESSAGES`, {
-        newLength: action.payload.length,
-        currentLength: state.subscriptionAllMessages.length,
-        first: action.payload[0]?.messageId || 'none',
-        timestamp: new Date().toISOString()
-      });
       return { ...state, subscriptionAllMessages: action.payload };
     
     // Pagination actions
@@ -787,295 +769,96 @@ export function AppProvider({ children }) {
   };
 
   const selectSubscription = async (subscription) => {
-    console.log(`🎯 === SUBSCRIPTION SELECTION STARTED ===`);
-    console.log(`📋 Subscription object:`, JSON.stringify(subscription, null, 2));
-    console.log(`📊 Current state before selection:`, {
-      subscriptionMessages: state.subscriptionMessages.length,
-      subscriptionDeadLetterMessages: state.subscriptionDeadLetterMessages.length,
-      subscriptionAllMessages: state.subscriptionAllMessages.length,
-      messageFilter: state.messageFilter,
-      loading: state.loading,
-      hasActiveConnection: !!state.activeConnection,
-      activeConnectionId: state.activeConnection?.id
+    dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ 
+      type: 'SET_SELECTED_SUBSCRIPTION', 
+      payload: { 
+        ...subscription, 
+        messageFilter: 'all' 
+      } 
     });
-    
-    // Early validation
-    if (!subscription || !subscription.topicName || !subscription.name) {
-      console.error(`❌ Invalid subscription object:`, subscription);
-      return;
-    }
-    
-    if (!state.activeConnection) {
-      console.error(`❌ No active connection available`);
-      return;
-    }
-    
-    if (state.loading) {
-      console.warn(`⚠️  Already loading, this might cause race condition`);
-    }
-    
-    console.log(`🔄 Dispatching SET_SELECTED_SUBSCRIPTION...`);
-    dispatch({ type: 'SET_SELECTED_SUBSCRIPTION', payload: subscription });
-    
-    console.log(`📱 Starting to load all subscription messages...`);
+
     try {
       await loadAllSubscriptionMessages(subscription.topicName, subscription.name);
-      console.log(`✅ === SUBSCRIPTION SELECTION COMPLETED SUCCESSFULLY ===`);
     } catch (error) {
-      console.error(`❌ Error during subscription selection:`, error);
-      console.error(`❌ Error details:`, {
-        message: error.message,
-        stack: error.stack,
-        subscription,
-        connectionId: state.activeConnection?.id
-      });
+      console.error('Failed to load subscription messages:', error);
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
-  const loadQueueMessages = async (queueName) => {
-    if (!state.activeConnection) return;
-    
+  const loadQueueMessages = async (queueName, maxMessages = 10000) => {
     try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      // Clear existing queue messages first
-      console.log(`🔄 Loading all queue messages: ${queueName}`);
-      dispatch({ type: 'SET_QUEUE_MESSAGES', payload: [] });
-      
-      // Fetch all messages (limit to 10,000 for memory management)
-      const maxMessages = 10000;
-      console.log(`📥 Fetching up to ${maxMessages} queue messages from Azure Service Bus...`);
-      
-      const messages = await azureServiceBusService.peekMessages(
-        state.activeConnection.id, 
-        queueName, 
-        maxMessages
-      );
-      
-      console.log(`✅ Received ${messages.length} queue messages from Azure Service Bus`);
+      const messages = await azureServiceBusService.peekMessages(state.activeConnection.id, queueName, maxMessages);
       dispatch({ type: 'SET_QUEUE_MESSAGES', payload: messages });
       
-      // Set up pagination
-      dispatch({ type: 'SET_PAGINATION', payload: { 
-        currentPage: 1, 
-        totalItems: messages.length 
-      }});
-      
-      if (messages.length >= maxMessages) {
-        console.warn(`⚠️  Reached maximum limit of ${maxMessages} messages. There may be more messages available.`);
-      }
-      
+      // Set up pagination for queue messages
+      const totalItems = messages.length;
+      dispatch({ 
+        type: 'SET_PAGINATION', 
+        payload: { 
+          currentPage: 1, 
+          pageSize: DEFAULT_PAGE_SIZE, 
+          totalItems 
+        } 
+      });
     } catch (error) {
-      console.error('❌ Error loading queue messages:', error);
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      throw error;
     }
   };
 
-  const loadSubscriptionMessages = async (topicName, subscriptionName) => {
-    if (!state.activeConnection) return;
-    
+  const loadSubscriptionMessages = async (topicName, subscriptionName, maxMessages = 10000) => {
     try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      // Clear existing subscription messages first
-      console.log(`🔄 Loading all subscription messages: ${topicName}/${subscriptionName}`);
-      dispatch({ type: 'SET_SUBSCRIPTION_MESSAGES', payload: [] });
-      
-      // Fetch all messages (limit to 10,000 for memory management)
-      const maxMessages = 10000;
-      console.log(`📥 Fetching up to ${maxMessages} subscription messages from Azure Service Bus...`);
-      
-      const messages = await azureServiceBusService.peekSubscriptionMessages(
-        state.activeConnection.id, 
-        topicName, 
-        subscriptionName, 
-        maxMessages
-      );
-      
-      console.log(`✅ Received ${messages.length} subscription messages from Azure Service Bus`);
+      const messages = await azureServiceBusService.peekSubscriptionMessages(state.activeConnection.id, topicName, subscriptionName, maxMessages);
       dispatch({ type: 'SET_SUBSCRIPTION_MESSAGES', payload: messages });
-      
-      // Set up pagination
-      dispatch({ type: 'SET_PAGINATION', payload: { 
-        currentPage: 1, 
-        totalItems: messages.length 
-      }});
-      
-      if (messages.length >= maxMessages) {
-        console.warn(`⚠️  Reached maximum limit of ${maxMessages} subscription messages. There may be more messages available.`);
-      }
-      
     } catch (error) {
-      console.error('❌ Error loading subscription messages:', error);
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      throw error;
     }
   };
 
-  const loadSubscriptionDeadLetterMessages = async (topicName, subscriptionName) => {
-    if (!state.activeConnection) return;
-    
+  const loadSubscriptionDeadLetterMessages = async (topicName, subscriptionName, maxMessages = 10000) => {
     try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      // Clear existing subscription dead letter messages first
-      console.log(`🔄 Loading all subscription dead letter messages: ${topicName}/${subscriptionName}`);
-      dispatch({ type: 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES', payload: [] });
-      
-      // Fetch all dead letter messages (limit to 10,000 for memory management)
-      const maxMessages = 10000;
-      console.log(`📥 Fetching up to ${maxMessages} subscription dead letter messages from Azure Service Bus...`);
-      
-      const messages = await azureServiceBusService.getSubscriptionDeadLetterMessages(
-        state.activeConnection.id, 
-        topicName, 
-        subscriptionName, 
-        maxMessages
-      );
-      
-      console.log(`✅ Received ${messages.length} subscription dead letter messages from Azure Service Bus`);
+      const messages = await azureServiceBusService.getSubscriptionDeadLetterMessages(state.activeConnection.id, topicName, subscriptionName, maxMessages);
       dispatch({ type: 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES', payload: messages });
-      
-      // Set up pagination
-      dispatch({ type: 'SET_PAGINATION', payload: { 
-        currentPage: 1, 
-        totalItems: messages.length 
-      }});
-      
-      if (messages.length >= maxMessages) {
-        console.warn(`⚠️  Reached maximum limit of ${maxMessages} subscription dead letter messages. There may be more messages available.`);
-      }
-      
     } catch (error) {
-      console.error('❌ Error loading subscription dead letter messages:', error);
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      throw error;
     }
   };
 
-  const loadAllSubscriptionMessages = async (topicName, subscriptionName) => {
-    if (!state.activeConnection) {
-      console.error(`❌ No active connection for loadAllSubscriptionMessages`);
-      return;
-    }
-    
+  const loadAllSubscriptionMessages = async (topicName, subscriptionName, maxMessages = 10000) => {
     try {
-      console.log(`🔄 === LOADING ALL SUBSCRIPTION MESSAGES STARTED ===`);
-      console.log(`📋 Parameters:`, { topicName, subscriptionName, connectionId: state.activeConnection.id });
-      
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      // Clear existing subscription messages first
-      console.log(`🧹 Clearing existing subscription message arrays...`);
+      // Clear existing messages before loading new ones
       dispatch({ type: 'SET_SUBSCRIPTION_MESSAGES', payload: [] });
       dispatch({ type: 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES', payload: [] });
       dispatch({ type: 'SET_SUBSCRIPTION_ALL_MESSAGES', payload: [] });
-      console.log(`✅ Arrays cleared`);
+
+      const result = await azureServiceBusService.getAllSubscriptionMessages(state.activeConnection.id, topicName, subscriptionName, maxMessages);
       
-      // Fetch all messages using the new single API call
-      const maxMessages = 10000;
-      console.log(`📥 Fetching up to ${maxMessages} messages using getAllSubscriptionMessages API...`);
-      
-      const result = await azureServiceBusService.getAllSubscriptionMessages(
-        state.activeConnection.id, 
-        topicName, 
-        subscriptionName, 
-        maxMessages
-      );
-      
-      console.log(`📨 getAllSubscriptionMessages API Results:`, {
-        activeCount: result.activeMessages.length,
-        deadLetterCount: result.deadLetterMessages.length,
-        totalCount: result.totalCount,
-        allMessagesCount: result.allMessages.length
-      });
-      
-      console.log(`📤 Dispatching SET_SUBSCRIPTION_MESSAGES with ${result.activeMessages.length} messages...`);
       dispatch({ type: 'SET_SUBSCRIPTION_MESSAGES', payload: result.activeMessages });
-      
-      console.log(`📤 Dispatching SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES with ${result.deadLetterMessages.length} messages...`);
       dispatch({ type: 'SET_SUBSCRIPTION_DEAD_LETTER_MESSAGES', payload: result.deadLetterMessages });
-      
-      console.log(`📤 Dispatching SET_SUBSCRIPTION_ALL_MESSAGES with ${result.allMessages.length} combined messages...`);
       dispatch({ type: 'SET_SUBSCRIPTION_ALL_MESSAGES', payload: result.allMessages });
       
-      // Set up pagination for combined view
-      console.log(`📄 Setting up pagination for ${result.totalCount} total items...`);
-      dispatch({ type: 'SET_PAGINATION', payload: { 
-        currentPage: 1, 
-        totalItems: result.totalCount 
-      }});
-      
-      if (result.totalCount >= maxMessages * 2) {
-        console.warn(`⚠️  Reached maximum limit of ${maxMessages * 2} total subscription messages. There may be more messages available.`);
-      }
-      
-      console.log(`✅ === LOADING ALL SUBSCRIPTION MESSAGES COMPLETED ===`);
-      console.log(`📊 Final Results:`, {
-        activeCount: result.activeMessages.length,
-        deadLetterCount: result.deadLetterMessages.length,
-        combinedCount: result.allMessages.length,
-        totalCount: result.totalCount
+      // Set up pagination for all messages (default view)
+      const totalItems = result.allMessages.length;
+      dispatch({ 
+        type: 'SET_PAGINATION', 
+        payload: { 
+          currentPage: 1, 
+          pageSize: DEFAULT_PAGE_SIZE, 
+          totalItems 
+        } 
       });
-      
     } catch (error) {
-      console.error('❌ Error loading all subscription messages:', error);
-      console.error(`❌ Error context:`, {
-        topicName,
-        subscriptionName,
-        connectionId: state.activeConnection?.id,
-        errorMessage: error.message,
-        errorStack: error.stack
-      });
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-    } finally {
-      console.log(`🔄 Setting loading to false...`);
-      dispatch({ type: 'SET_LOADING', payload: false });
+      throw error;
     }
   };
 
-  const loadDeadLetterMessages = async (queueName) => {
-    if (!state.activeConnection) return;
-    
+  const loadDeadLetterMessages = async (queueName, maxMessages = 10000) => {
     try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      // Clear existing queue dead letter messages first
-      console.log(`🔄 Loading all queue dead letter messages: ${queueName}`);
-      dispatch({ type: 'SET_QUEUE_DEAD_LETTER_MESSAGES', payload: [] });
-      
-      // Fetch all dead letter messages (limit to 10,000 for memory management)
-      const maxMessages = 10000;
-      console.log(`📥 Fetching up to ${maxMessages} queue dead letter messages from Azure Service Bus...`);
-      
-      const messages = await azureServiceBusService.getDeadLetterMessages(
-        state.activeConnection.id, 
-        queueName, 
-        maxMessages
-      );
-      
-      console.log(`✅ Received ${messages.length} queue dead letter messages from Azure Service Bus`);
+      const messages = await azureServiceBusService.getDeadLetterMessages(state.activeConnection.id, queueName, maxMessages);
       dispatch({ type: 'SET_QUEUE_DEAD_LETTER_MESSAGES', payload: messages });
-      
-      // Set up pagination
-      dispatch({ type: 'SET_PAGINATION', payload: { 
-        currentPage: 1, 
-        totalItems: messages.length 
-      }});
-      
-      if (messages.length >= maxMessages) {
-        console.warn(`⚠️  Reached maximum limit of ${maxMessages} dead letter messages. There may be more messages available.`);
-      }
-      
     } catch (error) {
-      console.error('❌ Error loading queue dead letter messages:', error);
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      throw error;
     }
   };
 
@@ -1086,22 +869,18 @@ export function AppProvider({ children }) {
       dispatch({ type: 'SET_LOADING', payload: true });
       
       // Clear existing queue messages first
-      console.log(`🔄 Loading ALL queue message types: ${queueName}`);
       dispatch({ type: 'SET_QUEUE_MESSAGES', payload: [] });
       dispatch({ type: 'SET_QUEUE_DEAD_LETTER_MESSAGES', payload: [] });
       dispatch({ type: 'SET_QUEUE_ALL_MESSAGES', payload: [] });
       
       // Fetch all messages (limit to 10,000 each for memory management)
       const maxMessages = 10000;
-      console.log(`📥 Fetching up to ${maxMessages} messages of each type from Azure Service Bus...`);
       
       // Load both active and dead letter messages
       const [activeMessages, deadLetterMessages] = await Promise.all([
         azureServiceBusService.peekMessages(state.activeConnection.id, queueName, maxMessages),
         azureServiceBusService.getDeadLetterMessages(state.activeConnection.id, queueName, maxMessages)
       ]);
-      
-      console.log(`✅ Received ${activeMessages.length} active + ${deadLetterMessages.length} dead letter queue messages`);
       
       dispatch({ type: 'SET_QUEUE_MESSAGES', payload: activeMessages });
       dispatch({ type: 'SET_QUEUE_DEAD_LETTER_MESSAGES', payload: deadLetterMessages });
@@ -1120,13 +899,8 @@ export function AppProvider({ children }) {
         totalItems: combinedMessages.length 
       }});
       
-      const totalMessages = activeMessages.length + deadLetterMessages.length;
-      if (totalMessages >= maxMessages * 2) {
-        console.warn(`⚠️  Reached maximum limit of ${maxMessages * 2} total messages. There may be more messages available.`);
-      }
-      
     } catch (error) {
-      console.error('❌ Error loading all queue message types:', error);
+      console.error('Error loading all queue message types:', error);
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });

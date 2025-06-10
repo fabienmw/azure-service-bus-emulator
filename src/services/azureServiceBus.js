@@ -355,72 +355,33 @@ class AzureServiceBusService {
   }
 
   async getAllSubscriptionMessages(connectionId, topicName, subscriptionName, maxMessages = 10) {
-    const connection = this.getConnection(connectionId);
-    if (!connection) throw new Error('Connection not found');
+    if (!this.client) {
+      throw new Error('Not connected to Azure Service Bus');
+    }
 
     try {
-      console.log(`🔍 getAllSubscriptionMessages: Starting parallel fetch for ${topicName}/${subscriptionName}`);
-      
-      // Create both receivers
-      const activeReceiver = connection.client.createReceiver(topicName, subscriptionName);
-      const deadLetterReceiver = connection.client.createReceiver(topicName, subscriptionName, {
-        subQueueType: 'deadLetter'
-      });
-      
-      // Fetch both message types in parallel
+      // Get both active and dead letter messages in parallel
       const [activeMessages, deadLetterMessages] = await Promise.all([
-        activeReceiver.peekMessages(maxMessages),
-        deadLetterReceiver.peekMessages(maxMessages)
+        this.getSubscriptionMessages(connectionId, topicName, subscriptionName, maxMessages),
+        this.getSubscriptionDeadLetterMessages(connectionId, topicName, subscriptionName, maxMessages)
       ]);
-      
-      // Close receivers
-      await Promise.all([
-        activeReceiver.close(),
-        deadLetterReceiver.close()
-      ]);
-      
-      console.log(`✅ getAllSubscriptionMessages: Fetched ${activeMessages.length} active + ${deadLetterMessages.length} dead letter`);
-      
-      // Map and combine messages with type indicators
+
       const mappedActiveMessages = activeMessages.map(msg => ({
-        messageId: msg.messageId,
-        body: msg.body,
-        label: msg.label,
-        correlationId: msg.correlationId,
-        sessionId: msg.sessionId,
-        partitionKey: msg.partitionKey,
-        enqueuedTimeUtc: msg.enqueuedTimeUtc,
-        expiresAtUtc: msg.expiresAtUtc,
-        deliveryCount: msg.deliveryCount,
-        applicationProperties: msg.applicationProperties,
+        ...msg,
         messageType: 'active'
       }));
-      
+
       const mappedDeadLetterMessages = deadLetterMessages.map(msg => ({
-        messageId: msg.messageId,
-        body: msg.body,
-        label: msg.label,
-        correlationId: msg.correlationId,
-        sessionId: msg.sessionId,
-        partitionKey: msg.partitionKey,
-        enqueuedTimeUtc: msg.enqueuedTimeUtc,
-        expiresAtUtc: msg.expiresAtUtc,
-        deliveryCount: msg.deliveryCount,
-        applicationProperties: msg.applicationProperties,
-        deadLetterSource: msg.deadLetterSource,
-        deadLetterReason: msg.deadLetterReason,
-        deadLetterErrorDescription: msg.deadLetterErrorDescription,
+        ...msg,
         messageType: 'deadletter'
       }));
-      
-      // Return combined result with separate arrays and combined array
+
       return {
         activeMessages: mappedActiveMessages,
         deadLetterMessages: mappedDeadLetterMessages,
         allMessages: [...mappedActiveMessages, ...mappedDeadLetterMessages],
         totalCount: mappedActiveMessages.length + mappedDeadLetterMessages.length
       };
-      
     } catch (error) {
       throw new Error(`Failed to get all subscription messages: ${error.message}`);
     }
