@@ -8,7 +8,8 @@ const initialState = {
   activeConnection: null,
   queues: [],
   topics: [],
-  subscriptions: [],
+  subscriptions: [], // Keeping for backward compatibility
+  subscriptionsByTopic: {}, // { topicName: [subscriptions] }
   selectedQueue: null,
   selectedTopic: null,
   selectedSubscription: null,
@@ -18,9 +19,18 @@ const initialState = {
   messageFilter: 'active', // 'active', 'deadletter', 'all'
   loading: false,
   error: null,
-  sidebarSection: 'connections', // connections, queues, topics, subscriptions
+
   messagePreview: null,
   messageCount: 50, // Selected message count for loading
+  // Tree expand/collapse states
+  expandedStates: {
+    connections: true, // Start expanded by default
+    connectionChildren: {}, // { connectionId: boolean } - tracks if connection's children are expanded
+    queues: false,
+    topics: false,
+    topicSubscriptions: {}, // { topicName: boolean } - tracks if topic's subscriptions section is expanded
+    topicDetails: {} // { topicName: boolean } - tracks if topic itself is expanded to show subscriptions tab
+  },
 };
 
 function appReducer(state, action) {
@@ -75,6 +85,15 @@ function appReducer(state, action) {
     case 'SET_SUBSCRIPTIONS':
       return { ...state, subscriptions: action.payload };
     
+    case 'SET_SUBSCRIPTIONS_BY_TOPIC':
+      return { 
+        ...state, 
+        subscriptionsByTopic: {
+          ...state.subscriptionsByTopic,
+          [action.payload.topicName]: action.payload.subscriptions
+        }
+      };
+    
     case 'SET_SELECTED_QUEUE':
       return { 
         ...state, 
@@ -128,8 +147,70 @@ function appReducer(state, action) {
     case 'SET_MESSAGE_COUNT':
       return { ...state, messageCount: action.payload };
     
-    case 'SET_SIDEBAR_SECTION':
-      return { ...state, sidebarSection: action.payload };
+
+    
+    case 'TOGGLE_CONNECTIONS_EXPANDED':
+      return { 
+        ...state, 
+        expandedStates: { 
+          ...state.expandedStates, 
+          connections: !state.expandedStates.connections 
+        } 
+      };
+    
+    case 'TOGGLE_CONNECTION_CHILDREN':
+      return { 
+        ...state, 
+        expandedStates: { 
+          ...state.expandedStates, 
+          connectionChildren: {
+            ...state.expandedStates.connectionChildren,
+            [action.payload]: !state.expandedStates.connectionChildren[action.payload]
+          }
+        } 
+      };
+    
+    case 'TOGGLE_QUEUES_EXPANDED':
+      return { 
+        ...state, 
+        expandedStates: { 
+          ...state.expandedStates, 
+          queues: !state.expandedStates.queues 
+        } 
+      };
+    
+    case 'TOGGLE_TOPICS_EXPANDED':
+      return { 
+        ...state, 
+        expandedStates: { 
+          ...state.expandedStates, 
+          topics: !state.expandedStates.topics 
+        } 
+      };
+    
+    case 'TOGGLE_TOPIC_DETAILS_EXPANDED':
+      return { 
+        ...state, 
+        expandedStates: { 
+          ...state.expandedStates, 
+          topicDetails: {
+            ...state.expandedStates.topicDetails,
+            [action.payload]: !state.expandedStates.topicDetails[action.payload]
+          }
+        } 
+      };
+    
+    case 'TOGGLE_TOPIC_SUBSCRIPTIONS_EXPANDED':
+      return { 
+        ...state, 
+        expandedStates: { 
+          ...state.expandedStates, 
+          topicSubscriptions: {
+            ...state.expandedStates.topicSubscriptions,
+            [action.payload]: !state.expandedStates.topicSubscriptions[action.payload]
+          }
+        } 
+      };
     
     case 'SET_MESSAGE_PREVIEW':
       return { ...state, messagePreview: action.payload };
@@ -170,6 +251,16 @@ export function AppProvider({ children }) {
       dispatch({ type: 'SET_LOADING', payload: true });
       await azureServiceBusService.disconnectConnection(connectionId);
       dispatch({ type: 'REMOVE_CONNECTION', payload: connectionId });
+      
+      // If the disconnected connection was the active one, clear related data
+      if (state.activeConnection?.id === connectionId) {
+        dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: null });
+        dispatch({ type: 'SET_QUEUES', payload: [] });
+        dispatch({ type: 'SET_TOPICS', payload: [] });
+        dispatch({ type: 'SET_SELECTED_QUEUE', payload: null });
+        dispatch({ type: 'SET_SELECTED_TOPIC', payload: null });
+        dispatch({ type: 'SET_SELECTED_SUBSCRIPTION', payload: null });
+      }
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
@@ -177,8 +268,25 @@ export function AppProvider({ children }) {
     }
   };
 
-  const setActiveConnection = (connection) => {
+  const setActiveConnection = async (connection) => {
     dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: connection });
+    
+    // Load queues and topics counts immediately when connection is established
+    if (connection) {
+      try {
+        // Load both queues and topics in parallel to get their counts
+        await Promise.all([
+          loadQueues(),
+          loadTopics()
+        ]);
+      } catch (error) {
+        console.error('Error loading queues and topics for connection:', error);
+      }
+    }
+  };
+
+  const toggleConnectionChildren = (connectionId) => {
+    dispatch({ type: 'TOGGLE_CONNECTION_CHILDREN', payload: connectionId });
   };
 
   const loadQueues = async () => {
@@ -190,7 +298,6 @@ export function AppProvider({ children }) {
       
       const queues = await azureServiceBusService.getQueues(state.activeConnection.id);
       dispatch({ type: 'SET_QUEUES', payload: queues });
-      dispatch({ type: 'SET_SIDEBAR_SECTION', payload: 'queues' });
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
@@ -207,7 +314,6 @@ export function AppProvider({ children }) {
       
       const topics = await azureServiceBusService.getTopics(state.activeConnection.id);
       dispatch({ type: 'SET_TOPICS', payload: topics });
-      dispatch({ type: 'SET_SIDEBAR_SECTION', payload: 'topics' });
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
@@ -224,7 +330,7 @@ export function AppProvider({ children }) {
       
       const subscriptions = await azureServiceBusService.getSubscriptions(state.activeConnection.id, topicName);
       dispatch({ type: 'SET_SUBSCRIPTIONS', payload: subscriptions });
-      dispatch({ type: 'SET_SIDEBAR_SECTION', payload: 'subscriptions' });
+      dispatch({ type: 'SET_SUBSCRIPTIONS_BY_TOPIC', payload: { topicName, subscriptions } });
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
@@ -239,7 +345,7 @@ export function AppProvider({ children }) {
 
   const selectTopic = (topic) => {
     dispatch({ type: 'SET_SELECTED_TOPIC', payload: topic });
-    loadSubscriptions(topic.name);
+    // Don't automatically load subscriptions - let user expand to see them
   };
 
   const selectSubscription = async (subscription) => {
@@ -402,6 +508,39 @@ export function AppProvider({ children }) {
     dispatch({ type: 'SET_MESSAGE_COUNT', payload: count });
   };
 
+  const toggleConnectionsExpanded = () => {
+    dispatch({ type: 'TOGGLE_CONNECTIONS_EXPANDED' });
+  };
+
+  const toggleQueuesExpanded = () => {
+    dispatch({ type: 'TOGGLE_QUEUES_EXPANDED' });
+    // Data should already be loaded when connection was established
+    // No need to reload unless queues array is empty
+    if (!state.expandedStates.queues && state.queues.length === 0) {
+      loadQueues();
+    }
+  };
+
+  const toggleTopicsExpanded = () => {
+    dispatch({ type: 'TOGGLE_TOPICS_EXPANDED' });
+    // Data should already be loaded when connection was established
+    // No need to reload unless topics array is empty
+    if (!state.expandedStates.topics && state.topics.length === 0) {
+      loadTopics();
+    }
+  };
+
+  const toggleTopicDetailsExpanded = (topicName) => {
+    dispatch({ type: 'TOGGLE_TOPIC_DETAILS_EXPANDED', payload: topicName });
+  };
+
+  const toggleTopicSubscriptionsExpanded = (topicName) => {
+    dispatch({ type: 'TOGGLE_TOPIC_SUBSCRIPTIONS_EXPANDED', payload: topicName });
+    if (!state.expandedStates.topicSubscriptions[topicName]) {
+      loadSubscriptions(topicName);
+    }
+  };
+
 
 
   const receiveMessage = async (queueName) => {
@@ -429,9 +568,7 @@ export function AppProvider({ children }) {
     }
   };
 
-  const setSidebarSection = (section) => {
-    dispatch({ type: 'SET_SIDEBAR_SECTION', payload: section });
-  };
+
 
   const setMessagePreview = (message) => {
     dispatch({ type: 'SET_MESSAGE_PREVIEW', payload: message });
@@ -446,6 +583,7 @@ export function AppProvider({ children }) {
     createConnection,
     disconnectConnection,
     setActiveConnection,
+    toggleConnectionChildren,
     loadQueues,
     loadTopics,
     loadSubscriptions,
@@ -460,8 +598,12 @@ export function AppProvider({ children }) {
     loadAllMessageTypes,
     setMessageFilter,
     setMessageCount,
+    toggleConnectionsExpanded,
+    toggleQueuesExpanded,
+    toggleTopicsExpanded,
+    toggleTopicDetailsExpanded,
+    toggleTopicSubscriptionsExpanded,
     receiveMessage,
-    setSidebarSection,
     setMessagePreview,
     clearError,
   };
