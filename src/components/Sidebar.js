@@ -108,7 +108,10 @@ function Sidebar({ onNewConnection }) {
                             if (!connection.connected && connection.connectionString) {
                               try {
                                 await reconnectConnection(connection);
-                                toggleConnectionChildren(connection.id);
+                                // After successful reconnection, expand the children to show counts
+                                if (!expandedStates.connectionChildren[connection.id]) {
+                                  toggleConnectionChildren(connection.id);
+                                }
                               } catch (error) {
                                 console.error('Failed to reconnect:', error);
                               }

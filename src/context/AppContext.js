@@ -305,9 +305,6 @@ export function AppProvider({ children }) {
     // Load saved connections from localStorage
     const savedConnections = loadSavedConnections();
     
-    console.log('Active connections from service:', connections);
-    console.log('Saved connections from localStorage:', savedConnections);
-    
     // Merge active connections with saved ones, prioritizing saved connection data
     const mergedConnections = [];
     
@@ -336,8 +333,6 @@ export function AppProvider({ children }) {
         });
       }
     });
-    
-    console.log('Final merged connections:', mergedConnections);
     
     dispatch({ type: 'SET_CONNECTIONS', payload: mergedConnections });
   }, []);
@@ -483,10 +478,6 @@ export function AppProvider({ children }) {
         connectionString = savedConnection?.connectionString;
       }
       
-      // Debug logging
-      console.log('Reconnecting connection:', connection);
-      console.log('Connection string found:', !!connectionString);
-      
       // Check if connection string exists
       if (!connectionString) {
         throw new Error('Connection string not found for saved connection. Please check if the connection was saved properly.');
@@ -498,14 +489,14 @@ export function AppProvider({ children }) {
         connection.name
       );
       
-      // Update the connection status
+      // Update the connection status in the connections array
       dispatch({ type: 'UPDATE_CONNECTION_STATUS', payload: { id: connection.id, connected: true } });
       
-      // Set as active connection and load data
+      // Set as active connection first
       dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: reconnectedConnection });
       
       try {
-        // Load queues and topics
+        // Load queues and topics immediately
         const [queues, topics] = await Promise.all([
           azureServiceBusService.getQueues(reconnectedConnection.id),
           azureServiceBusService.getTopics(reconnectedConnection.id)
@@ -514,14 +505,14 @@ export function AppProvider({ children }) {
         dispatch({ type: 'SET_QUEUES', payload: queues });
         dispatch({ type: 'SET_TOPICS', payload: topics });
         
-        // Load message counts
+        // Load queue message counts
         const queueMessageCounts = queues.reduce((acc, queue) => {
           acc[queue.name] = queue.messageCount || 0;
           return acc;
         }, {});
         dispatch({ type: 'SET_QUEUE_MESSAGE_COUNTS', payload: queueMessageCounts });
         
-        // Load subscriptions for topics
+        // Load subscriptions for all topics
         if (topics.length > 0) {
           const subscriptionPromises = topics.map(async (topic) => {
             try {
@@ -534,13 +525,28 @@ export function AppProvider({ children }) {
           });
           
           const subscriptionResults = await Promise.all(subscriptionPromises);
+          
+          // Update subscriptionsByTopic for each topic
           subscriptionResults.forEach(result => {
             dispatch({ type: 'SET_SUBSCRIPTIONS_BY_TOPIC', payload: result });
+          });
+          
+          // Load subscription message counts for all topics
+          subscriptionResults.forEach(result => {
+            if (result.subscriptions.length > 0) {
+              const subscriptionMessageCounts = result.subscriptions.reduce((acc, subscription) => {
+                const key = `${result.topicName}_${subscription.name}`;
+                acc[key] = subscription.messageCount || 0;
+                return acc;
+              }, {});
+              dispatch({ type: 'SET_SUBSCRIPTION_MESSAGE_COUNTS', payload: subscriptionMessageCounts });
+            }
           });
         }
         
       } catch (loadError) {
         console.error('Error loading data for reconnected connection:', loadError);
+        // Don't fail the reconnection if loading counts fails
       }
       
       return reconnectedConnection;
