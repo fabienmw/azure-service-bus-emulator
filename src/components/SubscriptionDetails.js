@@ -47,16 +47,21 @@ function SubscriptionDetails() {
   const handleFilterClick = async (filter) => {
     if (!selectedSubscription) return;
     
-    setMessageFilter(filter);
     setActiveTab('messages'); // Switch to messages tab when filtering
     
+    // Always ensure we have all message types loaded if switching to 'all'
+    // For individual filters, we can use the cached data from 'all' if available
     if (filter === 'all') {
-      await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
-    } else if (filter === 'deadletter') {
-      await loadSubscriptionDeadLetterMessages(selectedSubscription.topicName, selectedSubscription.name);
-    } else if (filter === 'active') {
-      await loadSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
+      // Only reload if we don't have all messages or if the combined count doesn't match individual arrays
+      const needsReload = allMessages.length === 0 || 
+                         (messages.length === 0 && deadLetterMessages.length === 0);
+      if (needsReload) {
+        await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
+      }
     }
+    
+    // Set the filter after potential loading to avoid showing empty state
+    setMessageFilter(filter);
   };
 
   // Get the current messages based on filter

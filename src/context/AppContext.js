@@ -103,6 +103,8 @@ function appReducer(state, action) {
         selectedQueue: null,
         messages: [],
         deadLetterMessages: [],
+        allMessages: [],
+        messageFilter: 'all',
       };
     
     case 'SET_MESSAGES':
@@ -255,7 +257,7 @@ export function AppProvider({ children }) {
     }
   };
 
-  const loadSubscriptionMessages = async (topicName, subscriptionName, maxMessages = 50) => {
+  const loadSubscriptionMessages = async (topicName, subscriptionName, maxMessages = 30) => {
     if (!state.activeConnection) return;
     
     try {
@@ -274,7 +276,7 @@ export function AppProvider({ children }) {
     }
   };
 
-  const loadSubscriptionDeadLetterMessages = async (topicName, subscriptionName, maxMessages = 100) => {
+  const loadSubscriptionDeadLetterMessages = async (topicName, subscriptionName, maxMessages = 50) => {
     if (!state.activeConnection) return;
     
     try {
@@ -299,10 +301,10 @@ export function AppProvider({ children }) {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      // Load both active and dead letter messages
+      // Load both active and dead letter messages with reduced limits for better performance
       const [activeMessages, deadLetterMessages] = await Promise.all([
-        azureServiceBusService.peekSubscriptionMessages(state.activeConnection.id, topicName, subscriptionName, 100),
-        azureServiceBusService.getSubscriptionDeadLetterMessages(state.activeConnection.id, topicName, subscriptionName, 100)
+        azureServiceBusService.peekSubscriptionMessages(state.activeConnection.id, topicName, subscriptionName, 50),
+        azureServiceBusService.getSubscriptionDeadLetterMessages(state.activeConnection.id, topicName, subscriptionName, 50)
       ]);
       
       dispatch({ type: 'SET_MESSAGES', payload: activeMessages });
