@@ -32,16 +32,15 @@ function SubscriptionDetails() {
     setMessagePreview(message);
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     if (!selectedSubscription) return;
     
-    if (messageFilter === 'all') {
-      loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
-    } else if (messageFilter === 'deadletter') {
-      loadSubscriptionDeadLetterMessages(selectedSubscription.topicName, selectedSubscription.name);
-    } else {
-      loadSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
-    }
+    // Always refresh all message types to maintain state consistency across filters
+    // This ensures that switching filters after refresh will still work correctly
+    await loadAllSubscriptionMessages(selectedSubscription.topicName, selectedSubscription.name);
+    
+    // The current messageFilter state is preserved, so the user sees the same view
+    // but with refreshed data that's consistent across all filter types
   };
 
   const handleFilterClick = async (filter) => {

@@ -36,9 +36,9 @@ function MessageList({ messages, onPeekMessage, loading, emptyMessage, isDeadLet
   }
 
   return (
-    <div className="flex-1 overflow-hidden bg-white">
+    <div className="flex flex-col h-full bg-white">
       {(isDeadLetter || showMessageType) && messages.length > 0 && (
-        <div className={`border-b px-4 py-2 ${
+        <div className={`flex-shrink-0 border-b px-4 py-2 ${
           showMessageType 
             ? 'bg-primary-50 border-primary-200' 
             : 'bg-error-50 border-error-200'
@@ -64,14 +64,14 @@ function MessageList({ messages, onPeekMessage, loading, emptyMessage, isDeadLet
               )}
             </div>
             <div className={`text-xs ${showMessageType ? 'text-primary-600' : 'text-error-600'}`}>
-              {showMessageType ? 'Click tiles above to filter by type' : 'Click "Load Options" above to load more messages'}
+              {showMessageType ? 'Click tiles above to filter by type' : 'Messages are limited - refresh to see latest'}
             </div>
           </div>
         </div>
       )}
-      <div className="h-full overflow-y-auto scrollbar-thin">
+      <div className="flex-1 overflow-y-auto">
         <table className="w-full">
-          <thead className="bg-secondary-50 border-b border-secondary-200 sticky top-0">
+          <thead className="bg-secondary-50 border-b border-secondary-200 sticky top-0 z-10">
             <tr>
               <th className="text-left py-3 px-4 font-medium text-secondary-700">Message ID</th>
               <th className="text-left py-3 px-4 font-medium text-secondary-700">Label</th>
