@@ -57,11 +57,11 @@ function Sidebar({ onNewConnection }) {
         <div className="p-2 min-w-0"> {/* Prevents text overflow issues */}
           {/* Connections Section */}
           <div className="space-y-1">
-            <button
-              onClick={toggleConnectionsExpanded}
-              className="flex items-center justify-between w-full p-2 rounded-lg transition-colors hover:bg-secondary-100 text-secondary-700"
-            >
-              <div className="flex items-center space-x-2">
+            <div className="flex items-center justify-between w-full p-2 rounded-lg transition-colors hover:bg-secondary-100 text-secondary-700">
+              <button
+                onClick={toggleConnectionsExpanded}
+                className="flex items-center space-x-2 flex-1"
+              >
                 {expandedStates.connections ? (
                   <ChevronDown className="h-4 w-4" />
                 ) : (
@@ -72,18 +72,18 @@ function Sidebar({ onNewConnection }) {
                 <span className="text-xs bg-secondary-200 text-secondary-600 px-2 py-1 rounded-full">
                   {connections.length}
                 </span>
-              </div>
+              </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onNewConnection();
                 }}
-                className="p-1 hover:bg-secondary-200 rounded transition-colors"
+                className="p-1 hover:bg-secondary-200 rounded transition-colors ml-2"
                 title="New Connection"
               >
                 <Plus className="h-3 w-3 text-secondary-600" />
               </button>
-            </button>
+            </div>
 
             {expandedStates.connections && (
               <div className="ml-6 space-y-2 mt-1">
@@ -129,13 +129,13 @@ function Sidebar({ onNewConnection }) {
                             }
                           }}
                         >
-                          <button className="p-0.5 hover:bg-secondary-200 rounded transition-colors">
+                          <div className="p-0.5 hover:bg-secondary-200 rounded transition-colors cursor-pointer">
                             {expandedStates.connectionChildren[connection.id] ? (
                               <ChevronDown className="h-3 w-3" />
                             ) : (
                               <ChevronRight className="h-3 w-3" />
                             )}
-                          </button>
+                          </div>
                           {connection.connected ? (
                             <Wifi className="h-4 w-4 text-success-500 flex-shrink-0" />
                           ) : (
@@ -295,13 +295,13 @@ function Sidebar({ onNewConnection }) {
                                           toggleTopicDetailsExpanded(topic.name);
                                         }}
                                       >
-                                        <button className="p-0.5 hover:bg-secondary-200 rounded transition-colors">
+                                        <div className="p-0.5 hover:bg-secondary-200 rounded transition-colors cursor-pointer">
                                           {expandedStates.topicDetails[topic.name] ? (
                                             <ChevronDown className="h-3 w-3" />
                                           ) : (
                                             <ChevronRight className="h-3 w-3" />
                                           )}
-                                        </button>
+                                        </div>
                                         <Rss className="h-3 w-3" />
                                         <span className="text-sm font-medium truncate">{topic.name}</span>
                                       </div>
