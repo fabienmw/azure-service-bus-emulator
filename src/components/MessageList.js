@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, Calendar, Hash, Tag, AlertTriangle, MessageSquare } from 'lucide-react';
+import { Eye, Calendar, Hash, Tag, AlertTriangle, Inbox } from 'lucide-react';
 
 function MessageList({ 
   messages, 
@@ -54,7 +54,7 @@ function MessageList({
             <div className="flex items-center space-x-2">
               {showMessageType ? (
                 <>
-                  <MessageSquare className="h-4 w-4 text-primary-600" />
+                  <Inbox className="h-4 w-4 text-primary-600" />
                   <span className="text-sm font-medium text-primary-800">
                     Showing {messages.length} message{messages.length !== 1 ? 's' : ''} (
                     {messages.filter(m => m.messageType === 'active').length} active, {' '}

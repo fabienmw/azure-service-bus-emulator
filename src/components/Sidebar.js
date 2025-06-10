@@ -1,16 +1,14 @@
 import React from 'react';
 import { 
   Plus, 
-  Database, 
-  MessageSquare, 
-  Users, 
-  GitBranch, 
+  Cloud, 
+  Inbox, 
+  Bell, 
+  Rss, 
   Wifi, 
   WifiOff,
   ChevronRight,
   ChevronDown,
-  Inbox,
-  Rss,
   Settings
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -65,7 +63,7 @@ function Sidebar({ onNewConnection }) {
                 ) : (
                   <ChevronRight className="h-4 w-4" />
                 )}
-                <Database className="h-4 w-4" />
+                <Cloud className="h-4 w-4" />
                 <span className="font-medium">Connections</span>
                 <span className="text-xs bg-secondary-200 text-secondary-600 px-2 py-1 rounded-full">
                   {connections.length}
@@ -130,16 +128,31 @@ function Sidebar({ onNewConnection }) {
                             {connection.name}
                           </span>
                         </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            disconnectConnection(connection.id);
-                          }}
-                          className="p-1 hover:bg-error-100 rounded transition-colors"
-                          title="Disconnect"
-                        >
-                          <WifiOff className="h-3 w-3 text-error-500" />
-                        </button>
+                        <div className="flex items-center space-x-2">
+                          {/* Show counts immediately when connection is active */}
+                          {activeConnection?.id === connection.id && (
+                            <div className="flex items-center space-x-2 text-xs text-secondary-600">
+                              <div className="flex items-center space-x-1 bg-secondary-200 px-2 py-1 rounded-full">
+                                <Inbox className="h-3 w-3" />
+                                <span>{queues.length}</span>
+                              </div>
+                              <div className="flex items-center space-x-1 bg-secondary-200 px-2 py-1 rounded-full">
+                                <Rss className="h-3 w-3" />
+                                <span>{topics.length}</span>
+                              </div>
+                            </div>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              disconnectConnection(connection.id);
+                            }}
+                            className="p-1 hover:bg-error-100 rounded transition-colors"
+                            title="Disconnect"
+                          >
+                            <WifiOff className="h-3 w-3 text-error-500" />
+                          </button>
+                        </div>
                       </div>
 
                       {/* Child nodes (Queues and Topics) - show when connection is expanded */}
@@ -179,7 +192,7 @@ function Sidebar({ onNewConnection }) {
                                     )}
                                   >
                                     <div className="flex items-center space-x-2">
-                                      <MessageSquare className="h-3 w-3" />
+                                      <Inbox className="h-3 w-3" />
                                       <span className="text-sm font-medium truncate">{queue.name}</span>
                                     </div>
                                     <span className="text-xs bg-primary-200 text-primary-700 px-2 py-1 rounded-full">
@@ -260,7 +273,7 @@ function Sidebar({ onNewConnection }) {
                                             ) : (
                                               <ChevronRight className="h-4 w-4" />
                                             )}
-                                            <GitBranch className="h-4 w-4" />
+                                            <Bell className="h-4 w-4" />
                                             <span className="font-medium">Subscriptions</span>
                                             <span className="text-xs bg-secondary-200 text-secondary-600 px-2 py-1 rounded-full">
                                               {subscriptionsByTopic[topic.name]?.length || 0}
@@ -285,7 +298,7 @@ function Sidebar({ onNewConnection }) {
                                                 )}
                                               >
                                                 <div className="flex items-center space-x-2">
-                                                  <Users className="h-3 w-3" />
+                                                  <Bell className="h-3 w-3" />
                                                   <span className="text-sm font-medium truncate">
                                                     {subscription.name}
                                                   </span>

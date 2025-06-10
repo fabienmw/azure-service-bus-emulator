@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Database, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, Cloud, AlertCircle, CheckCircle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 function ConnectionModal({ onClose }) {
@@ -42,7 +42,7 @@ function ConnectionModal({ onClose }) {
         <div className="flex items-center justify-between p-6 border-b border-secondary-200">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-              <Database className="h-5 w-5 text-primary-600" />
+              <Cloud className="h-5 w-5 text-primary-600" />
             </div>
             <h2 className="text-xl font-bold text-secondary-800">New Connection</h2>
           </div>

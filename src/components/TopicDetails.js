@@ -1,5 +1,5 @@
 import React from 'react';
-import { Topic, GitBranch, Settings, Clock, BarChart3 } from 'lucide-react';
+import { Rss, Bell, Settings, Clock, BarChart3 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 function TopicDetails() {
@@ -24,7 +24,7 @@ function TopicDetails() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-primary-50 rounded-lg p-4 border border-primary-200">
             <div className="flex items-center space-x-2 mb-2">
-              <GitBranch className="h-5 w-5 text-primary-600" />
+              <Bell className="h-5 w-5 text-primary-600" />
               <span className="text-sm font-medium text-primary-800">Subscriptions</span>
             </div>
             <div className="text-2xl font-bold text-primary-700">
@@ -103,7 +103,7 @@ function TopicDetails() {
                     className="flex items-center justify-between p-3 bg-secondary-50 rounded-lg border"
                   >
                     <div className="flex items-center space-x-3">
-                      <GitBranch className="h-4 w-4 text-secondary-600" />
+                      <Bell className="h-4 w-4 text-secondary-600" />
                       <span className="font-medium text-secondary-800">{subscription.name}</span>
                     </div>
                     <div className="flex items-center space-x-4 text-sm text-secondary-600">

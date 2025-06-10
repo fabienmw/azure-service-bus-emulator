@@ -259,6 +259,51 @@ export function AppProvider({ children }) {
       const connection = await azureServiceBusService.createConnection(connectionString, name);
       dispatch({ type: 'ADD_CONNECTION', payload: connection });
       
+      // Set as active connection and immediately load counts
+      dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: connection });
+      
+      try {
+        // Load queues and topics in parallel to get their counts immediately
+        const [queues, topics] = await Promise.all([
+          azureServiceBusService.getQueues(connection.id),
+          azureServiceBusService.getTopics(connection.id)
+        ]);
+        
+        dispatch({ type: 'SET_QUEUES', payload: queues });
+        dispatch({ type: 'SET_TOPICS', payload: topics });
+        
+        // Load queue message counts
+        const queueMessageCounts = queues.reduce((acc, queue) => {
+          acc[queue.name] = queue.messageCount || 0;
+          return acc;
+        }, {});
+        dispatch({ type: 'SET_QUEUE_MESSAGE_COUNTS', payload: queueMessageCounts });
+        
+        // Load subscriptions for all topics
+        if (topics.length > 0) {
+          const subscriptionPromises = topics.map(async (topic) => {
+            try {
+              const subscriptions = await azureServiceBusService.getSubscriptions(connection.id, topic.name);
+              return { topicName: topic.name, subscriptions };
+            } catch (error) {
+              console.error(`Error loading subscriptions for topic ${topic.name}:`, error);
+              return { topicName: topic.name, subscriptions: [] };
+            }
+          });
+          
+          const subscriptionResults = await Promise.all(subscriptionPromises);
+          
+          // Update subscriptionsByTopic for each topic
+          subscriptionResults.forEach(result => {
+            dispatch({ type: 'SET_SUBSCRIPTIONS_BY_TOPIC', payload: result });
+          });
+        }
+        
+      } catch (loadError) {
+        console.error('Error loading queues and topics for new connection:', loadError);
+        // Don't fail the connection creation if loading counts fails
+      }
+      
       return connection;
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
@@ -293,14 +338,20 @@ export function AppProvider({ children }) {
   const setActiveConnection = async (connection) => {
     dispatch({ type: 'SET_ACTIVE_CONNECTION', payload: connection });
     
-    // Load queues and topics counts immediately when connection is established
-    if (connection) {
+    // If switching to a connection that doesn't have loaded data yet, load it
+    if (connection && (state.queues.length === 0 || state.topics.length === 0)) {
       try {
         // Load both queues and topics in parallel to get their counts
         await Promise.all([
           loadQueues(),
           loadTopics()
         ]);
+        
+        // Also load all subscriptions for all topics immediately
+        await loadAllTopicsSubscriptions();
+        
+        // Load message counts immediately after loading entities
+        await loadQueueMessageCounts();
       } catch (error) {
         console.error('Error loading queues and topics for connection:', error);
       }

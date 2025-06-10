@@ -1,5 +1,5 @@
 import React from 'react';
-import { Database, Plus, Zap, Shield, BarChart3 } from 'lucide-react';
+import { Cloud, Plus, Zap, Shield, BarChart3 } from 'lucide-react';
 
 function WelcomeScreen() {
   return (
@@ -7,7 +7,7 @@ function WelcomeScreen() {
       <div className="text-center max-w-2xl mx-auto p-8">
         {/* Logo/Icon */}
         <div className="w-32 h-32 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-xl">
-          <Database className="h-16 w-16 text-white" />
+          <Cloud className="h-16 w-16 text-white" />
         </div>
 
         {/* Title */}

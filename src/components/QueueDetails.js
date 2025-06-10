@@ -4,7 +4,7 @@ import {
   Download, 
   Trash, 
   RefreshCw, 
-  MessageSquare, 
+  Inbox, 
   Clock, 
   AlertTriangle,
   BarChart3,
@@ -170,7 +170,7 @@ function QueueDetails() {
             }`}
           >
             <div className="flex items-center space-x-2 mb-2">
-              <MessageSquare className="h-5 w-5 text-primary-600" />
+              <Inbox className="h-5 w-5 text-primary-600" />
               <span className="text-sm font-medium text-primary-800">Total Messages</span>
             </div>
             <div className="text-2xl font-bold text-primary-700">
