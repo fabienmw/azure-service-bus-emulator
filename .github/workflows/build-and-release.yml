@@ -97,10 +97,10 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./artifacts/**/*.dmg
             ./artifacts/**/*.zip
             ./artifacts/**/latest*.yml
             # Temporarily disabled for testing
+            # ./artifacts/**/*.dmg
             # ./artifacts/**/*.exe
             # ./artifacts/**/*.AppImage
             # ./artifacts/**/*.deb

@@ -86,10 +86,6 @@
       "artifactName": "${productName}-${version}-mac.${ext}",
       "target": [
         {
-          "target": "dmg",
-          "arch": ["x64", "arm64"]
-        },
-        {
           "target": "zip",
           "arch": ["x64", "arm64"]
         }
@@ -133,21 +129,6 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Azure Service Bus Manager"
-    },
-    "dmg": {
-      "contents": [
-        {
-          "x": 410,
-          "y": 150,
-          "type": "link",
-          "path": "/Applications"
-        },
-        {
-          "x": 130,
-          "y": 150,
-          "type": "file"
-        }
-      ]
     }
   },
   "browserslist": {
