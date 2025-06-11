@@ -2,6 +2,8 @@
 
 A powerful desktop application built with React and Electron for managing Azure Service Bus instances. This application provides a modern, intuitive interface for monitoring and managing queues, topics, subscriptions, and messages.
 
+![Build and Release](https://github.com/fabienmw/azure-service-bus-emulator/workflows/Build%20and%20Release/badge.svg)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/fabienmw/azure-service-bus-emulator)
 ![Azure Service Bus Manager](https://img.shields.io/badge/Azure-Service%20Bus%20Manager-blue)
 ![React](https://img.shields.io/badge/React-18.2.0-blue)
 ![Electron](https://img.shields.io/badge/Electron-25.3.1-blue)
