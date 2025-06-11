@@ -94,14 +94,17 @@ jobs:
           path: ./artifacts
 
       - name: Display structure of downloaded files
-        run: ls -la ./artifacts
+        run: |
+          ls -la ./artifacts
+          echo "=== Detailed artifact contents ==="
+          find ./artifacts -type f -name "*.exe" -o -name "*.zip" -o -name "*.yml" | head -20
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
             ./artifacts/**/*-mac.zip
-            ./artifacts/**/*Setup*.exe
+            ./artifacts/**/Azure*.exe
             ./artifacts/**/latest*.yml
           draft: false
           prerelease: false
