@@ -100,8 +100,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./artifacts/**/*.zip
-            ./artifacts/**/*.exe
+            ./artifacts/**/*-mac.zip
+            ./artifacts/**/*Setup*.exe
             ./artifacts/**/latest*.yml
           draft: false
           prerelease: false
