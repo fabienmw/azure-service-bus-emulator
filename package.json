@@ -76,7 +76,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "fabien",
+        "owner": "fabienmw",
         "repo": "azure-service-bus-emulator"
       }
     ],
