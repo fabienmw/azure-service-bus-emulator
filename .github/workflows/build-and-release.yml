@@ -104,7 +104,8 @@ jobs:
         with:
           files: |
             ./artifacts/**/*-mac.zip
-            ./artifacts/**/Azure*.exe
+            ./artifacts/**/Azure*Setup*.exe
+            ./artifacts/**/Azure*-1.*.exe
             ./artifacts/**/latest*.yml
           draft: false
           prerelease: false
