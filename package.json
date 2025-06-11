@@ -2,7 +2,10 @@
   "name": "azure-service-bus-manager",
   "version": "1.0.0",
   "description": "Desktop application for managing Azure Service Bus queues, topics, and subscriptions",
-  "author": "Fabien",
+  "author": {
+    "name": "Fabien",
+    "email": "fabien.mwamba@gmail.com"
+  },
   "main": "build/electron.js",
   "homepage": "./",
   "scripts": {
