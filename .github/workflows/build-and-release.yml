@@ -95,9 +95,12 @@ jobs:
 
       - name: Display structure of downloaded files
         run: |
-          ls -la ./artifacts
-          echo "=== Detailed artifact contents ==="
-          find ./artifacts -type f -name "*.exe" -o -name "*.zip" -o -name "*.yml" | head -20
+          echo "=== All artifacts ==="
+          find ./artifacts -type f | sort
+          echo "=== EXE files only ==="
+          find ./artifacts -name "*.exe" -exec ls -la {} \;
+          echo "=== Files to be uploaded ==="
+          find ./artifacts -name "*-mac.zip" -o -name "*Setup*.exe" -o -name "*-1.*.exe" -o -name "latest*.yml"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
