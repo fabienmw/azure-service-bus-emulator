@@ -11,6 +11,10 @@ on:
         required: true
         default: 'v1.0.0'
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -99,12 +103,6 @@ jobs:
           files: |
             ./artifacts/**/*.zip
             ./artifacts/**/latest*.yml
-            # Temporarily disabled for testing
-            # ./artifacts/**/*.dmg
-            # ./artifacts/**/*.exe
-            # ./artifacts/**/*.AppImage
-            # ./artifacts/**/*.deb
-            # ./artifacts/**/*.rpm
           draft: false
           prerelease: false
           generate_release_notes: true
