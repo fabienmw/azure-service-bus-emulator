@@ -2,7 +2,7 @@
   "name": "azure-service-bus-manager",
   "version": "1.0.0",
   "description": "Desktop application for managing Azure Service Bus queues, topics, and subscriptions",
-  "main": "electron/main.js",
+  "main": "./electron/main.js",
   "homepage": "./",
   "scripts": {
     "start": "craco start",
@@ -55,8 +55,9 @@
     },
     "files": [
       "build/**/*",
-      "electron/**/*",
+      "electron/main.js",
       "node_modules/**/*",
+      "package.json",
       "!node_modules/**/README.md",
       "!node_modules/**/CHANGELOG.md",
       "!node_modules/**/*.d.ts",
